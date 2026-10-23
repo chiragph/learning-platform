@@ -5,7 +5,7 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "prebuild": "npm run prisma:generate",
     "build": "nest build",
