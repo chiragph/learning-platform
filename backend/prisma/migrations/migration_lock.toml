@@ -1,0 +1,2 @@
+# Commit this file with the migration SQL.
+provider = "postgresql"
