@@ -1,0 +1,42 @@
+@layer components {
+  .decode-back-to-top {
+    position: fixed;
+    z-index: 20;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--action-hover);
+    border-radius: 50%;
+    background: var(--action);
+    color: var(--on-action);
+    box-shadow: 0 4px 12px rgb(20 26 33 / 18%);
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition: opacity 220ms ease, transform 220ms ease, background-color 220ms ease, box-shadow 220ms ease, visibility 0s linear 220ms;
+  }
+  .decode-back-to-top[data-visible="true"] {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+    transition-delay: 0s;
+  }
+  .decode-back-to-top:focus-visible { background: var(--action-hover); box-shadow: 0 6px 16px rgb(20 26 33 / 22%); }
+  @media (hover: hover) and (pointer: fine) {
+    .decode-back-to-top[data-visible="true"]:hover { background: var(--action-hover); transform: translateY(-2px); box-shadow: 0 6px 16px rgb(20 26 33 / 22%); }
+  }
+  .decode-back-to-top[data-visible="true"]:active { background: var(--action-hover); transform: translateY(1px); box-shadow: 0 2px 6px rgb(20 26 33 / 16%); }
+  @media (min-width: 640px) {
+    .decode-back-to-top { right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .decode-back-to-top { transition: none; transform: none !important; }
+  }
+}

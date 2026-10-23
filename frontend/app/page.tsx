@@ -4,6 +4,7 @@ import { Icon } from "./components/landing/landing-icon";
 import { AccessButton, LandingInteractions } from "./components/landing/interactions";
 import { Navbar } from "./components/landing/navbar";
 import { Wordmark } from "./components/landing/wordmark";
+import { BackToTop } from "./components/landing/back-to-top";
 
 export const metadata: Metadata = {
   title: "DECODE — Your first website starts here",
@@ -140,6 +141,7 @@ export default function Home() {
           <p>Made for curious minds.</p>
         </div>
       </footer>
+      <BackToTop />
     </LandingInteractions>
   );
 }

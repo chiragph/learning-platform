@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useSyncExternalStore, type FormEvent, type SyntheticEvent } from "react";
+import { useRef, useState, useSyncExternalStore, type FormEvent, type PointerEvent } from "react";
 import { Icon } from "../landing/landing-icon";
 import { validateAuth, type AuthErrors, type AuthMode, type AuthValues, type FieldName } from "./validation";
 import { AnimatedOwl, type AnimatedOwlHandle } from "./animated-owl";
@@ -21,8 +21,12 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   const [visible, setVisible] = useState({ password: false, confirmPassword: false });
   const [notice, setNotice] = useState("");
 
-  function handleLook(event: SyntheticEvent<HTMLInputElement>) {
-    owl.current?.lookAt(event.currentTarget);
+  function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "touch") owl.current?.followPointer(event.clientX, event.clientY);
+  }
+
+  function handlePointerLeave() {
+    owl.current?.resetPointer();
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -57,12 +61,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
             required value={values[name]} aria-invalid={Boolean(errors[name])}
             aria-describedby={[hint ? "password-hint" : "", errors[name] ? `${name}-error` : ""].filter(Boolean).join(" ") || undefined}
             className={password ? "decode-auth-input decode-auth-password" : "decode-auth-input"}
-            onFocus={handleLook}
-            onSelect={handleLook}
-            onKeyUp={handleLook}
-            onPointerUp={handleLook}
             onChange={(event) => {
-              handleLook(event);
               const next = { ...values, [name]: event.target.value };
               setValues(next);
               setNotice("");
@@ -87,7 +86,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
   return (
     <div className={`decode-auth-stage${register ? " decode-auth-stage-register" : ""}`}>
-    <div className="decode-auth-companion">
+    <div className="decode-auth-companion" onPointerEnter={handlePointerMove} onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave} onPointerCancel={handlePointerLeave}>
     <div className="decode-auth-companion-content">
     <AnimatedOwl ref={owl} focusedField={focusedField} concealed={focusedField === "password" || focusedField === "confirmPassword" ? !visible[focusedField] : false} />
     <div className="decode-auth-welcome">
@@ -97,12 +96,12 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     </div>
     </div>
     <section className="decode-auth-card" aria-labelledby="auth-title">
-      <p className="decode-eyebrow mb-3">LEARN. PRACTICE. BUILD.</p>
+      <p className="decode-eyebrow mb-2">LEARN. PRACTICE. BUILD.</p>
       <h1 id="auth-title" className="decode-section-title">{register ? "Start something new." : "Welcome back."}</h1>
-      <p className="mt-3 text-sm leading-6 text-secondary">{register ? "Create your student account and take your first step into code." : "Sign in to continue your DECODE journey."}</p>
-      <p id="auth-availability" className="decode-auth-notice mt-6">{register ? "Student account creation is not available yet. You can preview this form; your details will not be sent or saved." : "Sign-in is not available yet. You can preview this form; your details will not be sent or saved."}</p>
+      <p className="mt-2 text-sm leading-6 text-secondary">{register ? "Create your student account and take your first step into code." : "Sign in to continue your DECODE journey."}</p>
+      <p id="auth-availability" className="decode-auth-notice mt-4">{register ? "Student account creation is not available yet. You can preview this form; your details will not be sent or saved." : "Sign-in is not available yet. You can preview this form; your details will not be sent or saved."}</p>
       <noscript><p className="mt-4 text-sm text-secondary">Enable JavaScript to preview form validation. Authentication is not available yet.</p></noscript>
-      <form ref={form} onSubmit={submit} noValidate aria-describedby="auth-availability" className="decode-auth-form mt-6">
+      <form ref={form} onSubmit={submit} noValidate aria-describedby="auth-availability" className="decode-auth-form mt-4">
         {/* Prevent an unhydrated/native form submission from sending credentials. */}
         <fieldset disabled={!hydrated} className="decode-auth-fields">
         {register && field("name", "Full name", "text", "name")}
@@ -120,8 +119,8 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       <div className="decode-auth-divider" aria-hidden="true"><span />or<span /></div>
       <button type="button" className="decode-button decode-button-secondary decode-auth-google w-full" disabled aria-describedby="google-unavailable"><span className="font-semibold" aria-hidden="true">G</span>{register ? "Sign up with Google" : "Continue with Google"}</button>
       <p id="google-unavailable" className="mt-2 text-center text-xs leading-5 text-secondary">Google {register ? "signup" : "sign-in"} is not available yet.</p>
-      <p className="mt-6 text-center text-sm leading-6 text-secondary">{register ? "Already have an account?" : "New to DECODE?"} <Link href={register ? "/login" : "/register"} className="decode-auth-link">{register ? "Sign In" : "Create an account"}</Link></p>
-      <Link href="/" className="decode-auth-link mt-5 inline-flex min-h-11 items-center gap-2 text-sm"><Icon name="arrow" className="size-4 rotate-180" />Back to home</Link>
+      <p className="mt-4 text-center text-sm leading-6 text-secondary">{register ? "Already have an account?" : "New to DECODE?"} <Link href={register ? "/login" : "/register"} className="decode-auth-link">{register ? "Sign In" : "Create an account"}</Link></p>
+      <Link href="/" className="decode-auth-link mt-2 inline-flex min-h-11 items-center gap-2 text-sm"><Icon name="arrow" className="size-4 rotate-180" />Back to home</Link>
     </section>
     </div>
   );

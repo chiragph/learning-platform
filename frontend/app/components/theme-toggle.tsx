@@ -2,6 +2,7 @@
 
 import { useLayoutEffect } from "react";
 import { Icon } from "./landing/landing-icon";
+import "./theme-toggle.css";
 
 const storageKey = "decode-theme";
 
@@ -30,8 +31,8 @@ export function ThemeToggle() {
   // CSS selects the correct icon and accessible name before hydration as well.
   return (
     <button type="button" className="decode-icon-button decode-theme-toggle" onClick={toggle}>
-      <span className="decode-theme-to-dark"><Icon name="moon" className="size-5" /><span className="sr-only">Switch to dark theme</span></span>
-      <span className="decode-theme-to-light"><Icon name="sun" className="size-5" /><span className="sr-only">Switch to light theme</span></span>
+      <span className="decode-theme-to-dark"><Icon name="moon" className="size-[22px]" strokeWidth={2} /><span className="sr-only">Switch to dark mode</span></span>
+      <span className="decode-theme-to-light"><Icon name="sun" className="size-[22px]" strokeWidth={2} /><span className="sr-only">Switch to light mode</span></span>
     </button>
   );
 }
