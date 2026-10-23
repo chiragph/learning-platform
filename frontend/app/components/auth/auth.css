@@ -1,0 +1,64 @@
+@layer components {
+  .decode-auth { display: flex; min-height: 100dvh; flex-direction: column; }
+  .decode-auth-main { display: flex; flex: 1; align-items: center; justify-content: center; padding-block: 16px 24px; }
+  .decode-auth-stage { --auth-illustration: #EFF3F8; position: relative; isolation: isolate; width: 100%; min-width: 0; max-width: 440px; border: 1px solid color-mix(in srgb, var(--border) 85%, var(--secondary)); border-radius: 16px; background: var(--surface); box-shadow: 0 4px 12px rgb(32 42 50 / 3%), 0 24px 64px rgb(32 42 50 / 7%); }
+  .decode-auth-stage-register { max-width: 480px; }
+  [data-theme="dark"] .decode-auth-stage { --auth-illustration: #1B2635; box-shadow: 0 6px 16px rgb(0 0 0 / 12%), 0 24px 64px rgb(0 0 0 / 20%); }
+  .decode-auth-companion { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 16px 24px; border-bottom: 1px solid var(--border); border-radius: 15px 15px 0 0; background: var(--auth-illustration); }
+  .decode-auth-companion-content { display: flex; flex-shrink: 0; flex-direction: column; align-items: center; gap: 8px; width: 100%; min-width: 0; text-align: center; }
+  .decode-auth-companion .decode-owl { width: 88px; }
+  .decode-auth-welcome { width: 100%; max-width: 28ch; }
+  .decode-auth-welcome-title { font-size: 18px; font-weight: 600; line-height: 1.3; letter-spacing: -.035em; text-wrap: balance; }
+  .decode-auth-welcome-copy { margin-top: 6px; color: var(--action); font-family: var(--font-geist-mono), monospace; font-size: 12px; line-height: 1.6; letter-spacing: .015em; }
+  .decode-auth-card { position: relative; z-index: 1; width: 100%; min-width: 0; padding: clamp(20px, 2.5vw, 28px); border-radius: 0 0 15px 15px; background: var(--surface); }
+  .decode-auth-card .decode-section-title { font-size: clamp(1.625rem, 3vw, 1.75rem); line-height: 1.15; letter-spacing: -.04em; }
+  .decode-auth-notice { border: 1px solid var(--border); border-left: 2px solid var(--action); border-radius: 8px; background: var(--background); padding: 10px 12px; font-size: 12px; line-height: 1.6; color: var(--secondary); }
+  .decode-auth-fields { display: flex; min-width: 0; flex-direction: column; gap: 14px; }
+  .decode-auth-field { min-width: 0; }
+  .decode-auth-field > label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 500; }
+  .decode-auth-input-wrap { position: relative; }
+  .decode-auth-input { display: block; width: 100%; min-width: 0; min-height: 46px; border: 1px solid color-mix(in srgb, var(--secondary) 80%, var(--border)); border-radius: 8px; background: var(--background); padding: 11px 12px; font-size: 16px; line-height: 22px; color: var(--foreground); transition: border-color 220ms ease, box-shadow 220ms ease; }
+  .decode-auth-input:focus-visible { border-color: var(--action); outline-offset: 2px; }
+  .decode-auth-input[aria-invalid="true"] { border-color: var(--error); }
+  .decode-auth-password { padding-right: 50px; }
+  .decode-auth-visibility { display: inline-flex; position: absolute; right: 1px; top: 1px; width: 44px; height: 44px; align-items: center; justify-content: center; color: var(--secondary); border-radius: 6px; cursor: pointer; }
+  .decode-auth-visibility:is(:hover, :focus-visible) { color: var(--action); }
+  .decode-auth-hint, .decode-auth-error { margin-top: 5px; font-size: 12px; line-height: 1.6; }
+  .decode-auth-hint { color: var(--secondary); }
+  .decode-auth-error { color: var(--error); }
+  .decode-auth-options { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; font-size: 13px; }
+  .decode-auth-remember { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; cursor: pointer; }
+  .decode-auth-remember input { width: 16px; height: 16px; accent-color: var(--action); }
+  .decode-auth-link { color: var(--action); text-decoration: underline; text-underline-offset: 4px; }
+  .decode-auth-options > .decode-auth-link { display: inline-flex; min-height: 44px; align-items: center; }
+  .decode-auth-link:hover { color: var(--action-hover); }
+  .decode-auth-status { font-size: 13px; line-height: 1.7; color: var(--foreground); overflow-wrap: anywhere; }
+  .decode-auth-status:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .decode-auth-divider { display: flex; align-items: center; gap: 14px; margin-block: 16px; font-size: 12px; color: var(--secondary); }
+  .decode-auth-divider span { height: 1px; flex: 1; background: var(--border); }
+  .decode-auth-google:disabled { cursor: not-allowed; color: var(--secondary); background: var(--background); border-color: var(--border); transform: none; box-shadow: none; }
+  .decode-auth-form .decode-button, .decode-auth-google { min-height: 44px; padding: 10px 16px; }
+  @media (min-width: 768px) {
+    .decode-auth-main { padding-block: 24px 32px; }
+    .decode-auth-stage { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); align-items: stretch; max-width: 704px; }
+    .decode-auth-stage-register { max-width: 752px; }
+    .decode-auth-companion { justify-content: flex-start; padding: 24px 16px; border-bottom: 0; border-right: 1px solid var(--border); border-radius: 15px 0 0 15px; }
+    /* Only the contents stick. The full-height illustration surface stays
+       joined to the form, with no overflow container to trap sticky scrolling. */
+    .decode-auth-companion-content { position: sticky; top: clamp(24px, calc(50svh - 135px), 320px); gap: 16px; }
+    .decode-auth-companion .decode-owl { width: 150px; }
+    .decode-auth-welcome-title { font-size: 20px; }
+    .decode-auth-welcome-copy { margin-top: 8px; }
+    .decode-auth-card { border-radius: 0 15px 15px 0; }
+  }
+  @media (min-width: 1024px) {
+    .decode-auth-stage { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
+    .decode-auth-companion { padding: 28px 20px; }
+    .decode-auth-companion .decode-owl { width: 200px; }
+    .decode-auth-welcome-title { font-size: 22px; }
+  }
+  @media (min-width: 768px) and (max-height: 600px) {
+    .decode-auth-companion .decode-owl { width: 140px; }
+    .decode-auth-companion-content { gap: 14px; }
+  }
+}
