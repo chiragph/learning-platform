@@ -4,7 +4,6 @@ import { Icon } from "./components/landing/landing-icon";
 import { AccessButton, LandingInteractions } from "./components/landing/interactions";
 import { Navbar } from "./components/landing/navbar";
 import { Wordmark } from "./components/landing/wordmark";
-import "./components/landing/landing.css";
 
 export const metadata: Metadata = {
   title: "DECODE — Your first website starts here",

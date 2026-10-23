@@ -3,7 +3,39 @@
 :root {
   --background: #FAF9F6;
   --foreground: #202A32;
+  --surface: #FFF;
+  --secondary: #69737B;
+  --border: #E6E5E0;
+  --action: #315DB5;
+  --action-hover: #274D98;
+  --on-action: #FFF;
+  --muted-surface: #F6F5F1;
+  --cta-surface: #F0EFEA;
+  --html-ink: #954322;
+  --html-wash: #FBF0EA;
+  --css-wash: #EDF3FA;
+  --js-wash: #FBF6DD;
+  --error: #B42318;
   color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --background: #141A21;
+  --surface: #202934;
+  --foreground: #F1F3F5;
+  --secondary: #A5AFBA;
+  --border: #303B47;
+  --action: #7FA5F4;
+  --action-hover: #A0BEFF;
+  --on-action: #141A21;
+  --muted-surface: #19222C;
+  --cta-surface: #202934;
+  --html-ink: #F2A582;
+  --html-wash: #342A27;
+  --css-wash: #24334B;
+  --js-wash: #343226;
+  --error: #FFB4AB;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -11,9 +43,9 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --color-secondary: #69737B;
-  --color-action: #315DB5;
-  --color-border: #E6E5E0;
+  --color-secondary: var(--secondary);
+  --color-action: var(--action);
+  --color-border: var(--border);
   --color-html: #E56A3B;
   --color-css: #3478C9;
   --color-js: #F3CF45;
@@ -31,7 +63,7 @@ body {
 }
 
 :focus-visible {
-  outline: 3px solid #315DB5;
+  outline: 3px solid var(--action);
   outline-offset: 4px;
 }
 

@@ -1,0 +1,21 @@
+@layer components {
+  .decode-owl { position: relative; width: 160px; max-width: 100%; pointer-events: none; }
+  .decode-owl svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .decode-owl-idle { animation: decode-owl-breathe 5.8s ease-in-out infinite; }
+  .decode-owl-pose { transform-origin: 140px 150px; }
+  .decode-owl-pupils { transform: translate(0, 0); transition: transform 260ms ease-out; }
+  .decode-owl[data-watching="true"] .decode-owl-pupils { transform: translate(var(--owl-look-x, -4px), 6px); }
+  .decode-owl-brows { transition: transform 300ms ease; }
+  .decode-owl[data-watching="true"] .decode-owl-brows { transform: translateY(-2px); }
+  .decode-owl-lids { transform: scaleY(0); transform-origin: 140px 71px; animation: decode-owl-blink 6.8s ease-in-out infinite; }
+  .decode-owl-eyes { opacity: 1; transition: opacity 120ms ease; }
+  .decode-owl-wing { transform-box: view-box; transform-origin: 62px 137px; transform: rotate(125deg); transition: transform 420ms cubic-bezier(.22, .75, .25, 1); }
+  .decode-owl[data-cover="true"] .decode-owl-wing { transform: rotate(0deg); }
+  .decode-owl[data-cover="true"] .decode-owl-eyes { opacity: 0; transition-delay: 180ms; }
+  @keyframes decode-owl-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+  @keyframes decode-owl-blink { 0%, 39%, 43%, 72%, 76%, 100% { transform: scaleY(0); } 41%, 74% { transform: scaleY(1); } }
+  @media (min-width: 768px) { .decode-owl { width: 100%; } }
+  @media (prefers-reduced-motion: reduce) {
+    .decode-owl *, .decode-owl *::before, .decode-owl *::after { animation: none !important; transition: none !important; }
+  }
+}

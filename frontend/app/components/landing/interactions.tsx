@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { Icon } from "./landing-icon";
 
 type Intent = "start" | "signin" | "HTML" | "CSS" | "JavaScript";
@@ -53,9 +54,12 @@ export function LandingInteractions({ children }: { children: ReactNode }) {
   );
 }
 
-export function AccessButton({ intent = "start", children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { intent?: Intent }) {
+export function AccessButton({ intent = "start", children, className }: { intent?: Intent; children: ReactNode; className?: string }) {
   const open = useContext(AccessContext);
-  return <button type="button" {...props} onClick={() => open(intent)} aria-haspopup="dialog">{children}</button>;
+  if (intent === "start" || intent === "signin") {
+    return <Link href={intent === "signin" ? "/login" : "/register"} className={className}>{children}</Link>;
+  }
+  return <button type="button" className={className} onClick={() => open(intent)} aria-haspopup="dialog">{children}</button>;
 }
 
 export function MotionControl({ compact = false }: { compact?: boolean }) {
