@@ -1,5 +1,9 @@
 # Dependencies
 node_modules/
+.npm-cache/
+
+# Generated Prisma client (regenerate from the committed schema)
+backend/src/generated/prisma/
 
 # Environment variables and secrets
 .env

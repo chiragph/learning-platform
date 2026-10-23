@@ -1,3 +1,14 @@
+# Database setup
+
+The PostgreSQL database is managed with Prisma. See
+[the local database setup guide](prisma/README.md) for pgAdmin4 instructions,
+environment configuration, the User schema, and migration commands.
+
+The API defaults to port `4000`. `GET /health` checks the running API and
+`GET /health/database` verifies access to the migrated `users` table through
+Prisma. Create the local `learning_platform` database in pgAdmin4, configure
+`backend/.env`, then run the migration commands in the setup guide.
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
