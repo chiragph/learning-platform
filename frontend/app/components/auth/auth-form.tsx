@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { authenticateDemo, DEMO_ENABLED, DEMO_PASSWORD } from "@/app/lib/student/mock-auth";
 import { useRef, useState, useSyncExternalStore, type FormEvent, type PointerEvent } from "react";
 import { Icon } from "../landing/landing-icon";
 import { validateAuth, type AuthErrors, type AuthMode, type AuthValues, type FieldName } from "./validation";
@@ -12,6 +14,7 @@ const getServerHydrated = () => false;
 
 export function AuthForm({ mode }: { mode: AuthMode }) {
   const register = mode === "register";
+  const router = useRouter();
   const hydrated = useSyncExternalStore(subscribe, getHydrated, getServerHydrated);
   const form = useRef<HTMLFormElement>(null);
   const owl = useRef<AnimatedOwlHandle>(null);
@@ -40,9 +43,13 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       form.current?.querySelector<HTMLInputElement>(`[name="${first}"]`)?.focus();
       return;
     }
-    setNotice(register
-      ? "Account creation is not available yet. No account has been created and your details have not been sent."
-      : "Sign-in is not available yet. Your details have not been sent and you have not been signed in.");
+    if (!DEMO_ENABLED) { setNotice("Authentication is not connected. No account or session has been created."); return; }
+    try {
+      const remember = Boolean(new FormData(event.currentTarget).get("remember"));
+      authenticateDemo(values.email, values.password, register, remember);
+      setValues({ name: "", email: "", password: "", confirmPassword: "" });
+      router.push("/dashboard");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Demo sign-in failed. Check browser storage permissions."); }
   }
 
   function field(name: FieldName, label: string, type: "text" | "email" | "password", autoComplete: string) {
@@ -57,7 +64,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         <label htmlFor={name}>{label}</label>
         <div className="decode-auth-input-wrap">
           <input
-            id={name} name={name} type={show ? "text" : type} autoComplete={autoComplete}
+            id={name} name={name} type={show ? "text" : type} autoComplete={DEMO_ENABLED ? "off" : autoComplete}
             required value={values[name]} aria-invalid={Boolean(errors[name])}
             aria-describedby={[hint ? "password-hint" : "", errors[name] ? `${name}-error` : ""].filter(Boolean).join(" ") || undefined}
             className={password ? "decode-auth-input decode-auth-password" : "decode-auth-input"}
@@ -99,12 +106,12 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       <p className="decode-eyebrow mb-2">LEARN. PRACTICE. BUILD.</p>
       <h1 id="auth-title" className="decode-section-title">{register ? "Start something new." : "Welcome back."}</h1>
       <p className="mt-2 text-sm leading-6 text-secondary">{register ? "Create your student account and take your first step into code." : "Sign in to continue your DECODE journey."}</p>
-      <p id="auth-availability" className="decode-auth-notice mt-4">{register ? "Student account creation is not available yet. You can preview this form; your details will not be sent or saved." : "Sign-in is not available yet. You can preview this form; your details will not be sent or saved."}</p>
+      <p id="auth-availability" className="decode-auth-notice mt-4">{DEMO_ENABLED ? <>Development demo only. Use {register ? "a new fictional address such as learner@example.test" : "student@example.test"} and the public passphrase <strong>{DEMO_PASSWORD}</strong>. Never enter real personal details or passwords. Names and passwords are not saved. Browser-local accounts are not secure authentication. {register && "Your display name is generated from the fictional email alias."}</> : register ? "Student account creation is not available yet. You can preview this form; your details will not be sent or saved." : "Sign-in is not available yet. You can preview this form; your details will not be sent or saved."}</p>
       <noscript><p className="mt-4 text-sm text-secondary">Enable JavaScript to preview form validation. Authentication is not available yet.</p></noscript>
       <form ref={form} onSubmit={submit} noValidate aria-describedby="auth-availability" className="decode-auth-form mt-4">
         {/* Prevent an unhydrated/native form submission from sending credentials. */}
         <fieldset disabled={!hydrated} className="decode-auth-fields">
-        {register && field("name", "Full name", "text", "name")}
+        {register && field("name", DEMO_ENABLED ? "Fictional full name (not saved)" : "Full name", "text", DEMO_ENABLED ? "off" : "name")}
         {field("email", "Email", "email", "email")}
         {field("password", "Password", "password", register ? "new-password" : "current-password")}
         {register && field("confirmPassword", "Confirm password", "password", "new-password")}
@@ -113,7 +120,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           <a href="#password-recovery" className="decode-auth-link" onClick={() => setNotice("Password recovery is not available yet. No reset email has been sent.")}>Forgot password?</a>
         </div>}
         <p id="password-recovery" role="status" aria-live="polite" aria-atomic="true" className="decode-auth-status">{notice}</p>
-        <button type="submit" className="decode-button decode-button-primary w-full">{register ? "Create Account" : "Sign In"}<Icon name="arrow" /></button>
+        <button type="submit" className="decode-button decode-button-primary w-full">{register ? DEMO_ENABLED ? "Create Demo Account" : "Create Account" : "Sign In"}<Icon name="arrow" /></button>
         </fieldset>
       </form>
       <div className="decode-auth-divider" aria-hidden="true"><span />or<span /></div>

@@ -1,0 +1,10 @@
+export type Subject = "html" | "css" | "javascript";
+export type Code = { html: string; css: string; javascript: string };
+export type Lesson = { id: string; title: string; explanation: string[]; code: string; language: Subject; practice: string };
+export type Course = { id: Subject; title: string; description: string; lessons: Lesson[] };
+export type Question = { id: string; topic: string; prompt: string; options: [string, string, string, string]; correct: number; explanation: string };
+export type QuizResult = { latest: number; best: number; attempts: number; at: string };
+export type Activity = { id: string; title: string; at: string; href: string };
+export type Progress = { version: 1; lessons: string[]; quizzes: Record<string, QuizResult>; challenges: string[]; projects: string[]; currentLesson: string | null; activity: Activity[]; drafts: Record<string, Code> };
+export type Challenge = { id: string; subject: Subject; title: string; difficulty: "Beginner"; instructions: string; expected: string; hint: string; starter: Code; check?: "heading" | "link" | "button" };
+export type Project = { id: string; title: string; difficulty: "Beginner"; overview: string; objectives: string[]; steps: string[]; starter: Code };
