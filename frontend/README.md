@@ -2,6 +2,11 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Login and registration connect to the NestJS API and PostgreSQL. Start the backend
+on port `4000` before submitting either form; see
+[the authentication guide](../backend/AUTH.md) for database setup and checks.
+Successful authentication opens the plain `/login/success` page.
+
 First, run the development server:
 
 ```bash
