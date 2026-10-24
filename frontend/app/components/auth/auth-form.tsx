@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState, useSyncExternalStore, type FormEvent, type PointerEvent } from "react";
 import { Icon } from "../landing/landing-icon";
 import { validateAuth, type AuthErrors, type AuthMode, type AuthValues, type FieldName } from "./validation";
 import { AnimatedOwl, type AnimatedOwlHandle } from "./animated-owl";
+import { authRequest } from "./auth-client";
 
 const subscribe = () => () => {};
 const getHydrated = () => true;
@@ -12,6 +14,7 @@ const getServerHydrated = () => false;
 
 export function AuthForm({ mode }: { mode: AuthMode }) {
   const register = mode === "register";
+  const router = useRouter();
   const hydrated = useSyncExternalStore(subscribe, getHydrated, getServerHydrated);
   const form = useRef<HTMLFormElement>(null);
   const owl = useRef<AnimatedOwlHandle>(null);
@@ -20,6 +23,9 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   const [errors, setErrors] = useState<AuthErrors>({});
   const [visible, setVisible] = useState({ password: false, confirmPassword: false });
   const [notice, setNotice] = useState("");
+  const [pending, setPending] = useState(false);
+  const submitting = useRef(false);
+  const [remember, setRemember] = useState(false);
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
     if (event.pointerType !== "touch") owl.current?.followPointer(event.clientX, event.clientY);
@@ -29,8 +35,9 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     owl.current?.resetPointer();
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting.current) return;
     owl.current?.reactToSubmit();
     const nextErrors = validateAuth(values, mode);
     setErrors(nextErrors);
@@ -40,9 +47,23 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       form.current?.querySelector<HTMLInputElement>(`[name="${first}"]`)?.focus();
       return;
     }
-    setNotice(register
-      ? "Account creation is not available yet. No account has been created and your details have not been sent."
-      : "Sign-in is not available yet. Your details have not been sent and you have not been signed in.");
+    submitting.current = true;
+    setPending(true);
+    setNotice(register ? "Creating your account…" : "Signing in…");
+    try {
+      await authRequest(mode, {
+        email: values.email.trim(), password: values.password,
+        ...(register ? { name: values.name.trim() } : { remember }),
+      });
+      setValues({ name: "", email: "", password: "", confirmPassword: "" });
+      setNotice(register ? "Account created successfully." : "Signed in successfully.");
+      router.replace("/login/success");
+      router.refresh();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to sign in. Please try again.");
+      submitting.current = false;
+      setPending(false);
+    }
   }
 
   function field(name: FieldName, label: string, type: "text" | "email" | "password", autoComplete: string) {
@@ -99,21 +120,21 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       <p className="decode-eyebrow mb-2">LEARN. PRACTICE. BUILD.</p>
       <h1 id="auth-title" className="decode-section-title">{register ? "Start something new." : "Welcome back."}</h1>
       <p className="mt-2 text-sm leading-6 text-secondary">{register ? "Create your student account and take your first step into code." : "Sign in to continue your DECODE journey."}</p>
-      <p id="auth-availability" className="decode-auth-notice mt-4">{register ? "Student account creation is not available yet. You can preview this form; your details will not be sent or saved." : "Sign-in is not available yet. You can preview this form; your details will not be sent or saved."}</p>
-      <noscript><p className="mt-4 text-sm text-secondary">Enable JavaScript to preview form validation. Authentication is not available yet.</p></noscript>
-      <form ref={form} onSubmit={submit} noValidate aria-describedby="auth-availability" className="decode-auth-form mt-4">
+      <p id="auth-availability" className="decode-auth-notice mt-4">{register ? "Create your student account with your name, email, and password." : "Sign in with the email and password you used to create your account."}</p>
+      <noscript><p className="mt-4 text-sm text-secondary">Enable JavaScript to create an account or sign in.</p></noscript>
+      <form ref={form} onSubmit={submit} noValidate aria-describedby="auth-availability" aria-busy={pending} className="decode-auth-form mt-4">
         {/* Prevent an unhydrated/native form submission from sending credentials. */}
-        <fieldset disabled={!hydrated} className="decode-auth-fields">
+        <fieldset disabled={!hydrated || pending} className="decode-auth-fields">
         {register && field("name", "Full name", "text", "name")}
         {field("email", "Email", "email", "email")}
         {field("password", "Password", "password", register ? "new-password" : "current-password")}
         {register && field("confirmPassword", "Confirm password", "password", "new-password")}
         {!register && <div className="decode-auth-options">
-          <label className="decode-auth-remember"><input type="checkbox" name="remember" /> Remember me</label>
+          <label className="decode-auth-remember"><input type="checkbox" name="remember" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> Remember me</label>
           <a href="#password-recovery" className="decode-auth-link" onClick={() => setNotice("Password recovery is not available yet. No reset email has been sent.")}>Forgot password?</a>
         </div>}
         <p id="password-recovery" role="status" aria-live="polite" aria-atomic="true" className="decode-auth-status">{notice}</p>
-        <button type="submit" className="decode-button decode-button-primary w-full">{register ? "Create Account" : "Sign In"}<Icon name="arrow" /></button>
+        <button type="submit" className="decode-button decode-button-primary w-full">{pending ? (register ? "Creating Account…" : "Signing In…") : (register ? "Create Account" : "Sign In")}<Icon name="arrow" /></button>
         </fieldset>
       </form>
       <div className="decode-auth-divider" aria-hidden="true"><span />or<span /></div>
