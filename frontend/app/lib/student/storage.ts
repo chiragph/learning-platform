@@ -1,4 +1,5 @@
-// Only fictional demo identities, learning records, and learner-written code belong here.
+// Browser-local learning records and preferences only. Never store backend
+// session tokens or passwords here.
 export function readStorage<T>(storage: Storage, key: string, fallback: T): T {
   try { const value = storage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; }
 }

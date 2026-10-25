@@ -19,13 +19,13 @@ export const profileAvatars = [
 export type AvatarId = typeof profileAvatars[number]["id"];
 export type StudentProfile = { version: 1; displayName: string; avatar: AvatarId };
 export function profileKey(studentId: string) { return `decode-profile-v1-${studentId}`; }
-export function defaultProfile(alias: string): StudentProfile { return { version: 1, displayName: `Learner ${alias}`, avatar: "owl" }; }
+export function defaultProfile(alias: string, name?: string): StudentProfile { return { version: 1, displayName: name?.trim().replace(/\s+/g, " ").slice(0, 40) || `Learner ${alias}`, avatar: "owl" }; }
 export function displayNameError(value: string) {
   const name = value.trim().replace(/\s+/g, " ");
-  return name.length < 2 || name.length > 40 || /[\u0000-\u001f\u007f]/.test(value) ? "Use a demo display name with 2–40 characters and no control characters." : "";
+  return name.length < 2 || name.length > 40 || /[\u0000-\u001f\u007f]/.test(value) ? "Use a display name with 2–40 characters and no control characters." : "";
 }
-export function normalizeProfile(value: unknown, alias: string): StudentProfile {
-  const fallback = defaultProfile(alias);
+export function normalizeProfile(value: unknown, alias: string, name?: string): StudentProfile {
+  const fallback = defaultProfile(alias, name);
   if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
   const saved = value as Record<string, unknown>;
   if (saved.version !== 1) return fallback;
@@ -35,7 +35,7 @@ export function normalizeProfile(value: unknown, alias: string): StudentProfile 
     avatar: profileAvatars.some((a) => a.id === saved.avatar) ? saved.avatar as AvatarId : fallback.avatar,
   };
 }
-export function readProfile(storage: Storage, alias: string) { return normalizeProfile(readStorage(storage, profileKey(alias), null), alias); }
+export function readProfile(storage: Storage, alias: string, name?: string) { return normalizeProfile(readStorage(storage, profileKey(alias), null), alias, name); }
 export function saveProfile(storage: Storage, alias: string, value: StudentProfile): StudentProfile {
   const error = displayNameError(value.displayName);
   if (error) throw new Error(error);

@@ -23,6 +23,7 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
+    "test:auth:live": "node test/auth.live.cjs",
     "pretest:e2e": "npm run prisma:generate",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "prisma:generate": "prisma generate",

@@ -41,7 +41,7 @@ export function QuizView({ subject }: { subject: Subject }) {
   useLayoutEffect(() => { if (focusRequest) { const target = (result ? resultsHeading : heading).current; target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: "start", behavior: "instant" }); } }, [focusRequest, result]);
   function persist(nextAnswers: Record<string, number>, nextIndex: number) {
     const ok = update(p => saveQuizSession(p, subject, nextAnswers, nextIndex, new Date().toISOString()));
-    setNotice(ok ? "Answers saved for this demo account." : "Answers are in this open page but could not be saved. Keep this page open and retry.");
+    setNotice(ok ? "Answers saved for this account." : "Answers are in this open page but could not be saved. Keep this page open and retry.");
   }
   function go(next: number) { setIndex(next); persist(answers, next); setFocusRequest(value => value + 1); }
   function requestSubmit() {

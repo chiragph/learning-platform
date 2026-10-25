@@ -16,10 +16,18 @@ const { createRoot, hydrateRoot } = await import("react-dom/client");
 const { renderToString } = await import("react-dom/server");
 const dependency = createRequire(import.meta.url);
 
-// Actual auth, profile and progress providers. Only Next's router/links are
-// replaced; all persistence happens in this disposable JSDOM origin.
+// Actual session, profile and progress providers with a backend HTTP double.
+// All learning persistence happens in this disposable JSDOM origin.
 function application(includeShell = false) {
-  const cache = new Map(), redirects = [];
+  const cache = new Map(), redirects = [], requests = [];
+  let user = { id: "student", name: "Learner student", email: "student@example.test", role: "STUDENT" };
+  const initialUser = { ...user };
+  async function fetch(url, options = {}) {
+    requests.push({ url, options });
+    if (url === "/api/auth/logout") { user = null; return Response.json({ message: "Signed out successfully." }); }
+    assert.equal(url, "/api/auth/me");
+    return user ? Response.json({ user }) : Response.json({ message: "Please sign in." }, { status: 401 });
+  }
   const router = { replace: href => redirects.push(href), refresh() {} };
   function load(filename) {
     filename = path.resolve(filename);
@@ -34,22 +42,21 @@ function application(includeShell = false) {
       const base = specifier.startsWith("@/") ? path.resolve(specifier.slice(2)) : path.resolve(path.dirname(filename), specifier);
       return load([base + ".ts", base + ".tsx"].find(fs.existsSync));
     }
-    vm.runInNewContext(source, { module: compiled, exports: compiled.exports, require, console, window, document: window.document, Element: window.Element, URL: window.URL, localStorage: window.localStorage, sessionStorage: window.sessionStorage, requestAnimationFrame: callback => setTimeout(callback, 0), process: { env: { NODE_ENV: "development" } } }, { filename });
+    vm.runInNewContext(source, { module: compiled, exports: compiled.exports, require, console, window, document: window.document, Element: window.Element, URL: window.URL, localStorage: window.localStorage, sessionStorage: window.sessionStorage, requestAnimationFrame: callback => setTimeout(callback, 0), fetch, AbortController, AbortSignal, crypto: globalThis.crypto, process: { env: { NODE_ENV: "development" } } }, { filename });
     return compiled.exports;
   }
-  const auth = load("app/lib/student/mock-auth.ts"), profiles = load("app/lib/student/student-profile.ts"), logic = load("app/lib/student/progress.ts");
+  const profiles = load("app/lib/student/student-profile.ts"), logic = load("app/lib/student/progress.ts");
   const { StudentProvider, useStudent } = load("app/components/student/student-provider.tsx");
   const { ProgressProvider, useProgress } = load("app/components/student/progress-provider.tsx");
   const { ProfileView } = load("app/components/student/profile-view.tsx");
   const Container = includeShell ? load("app/components/student/student-shell.tsx").StudentShell : ProgressProvider;
   let snapshot, identity;
   function Probe() { identity = useStudent(); snapshot = useProgress().progress; return React.createElement("output", { id: "identity" }, identity.label); }
-  const tree = () => React.createElement(StrictMode, null, React.createElement(StudentProvider, null, React.createElement(Container, null, React.createElement(Probe), React.createElement(ProfileView))));
-  return { tree, auth, profiles, logic, redirects, get progress() { return snapshot; }, get student() { return identity; } };
+  const tree = () => React.createElement(StrictMode, null, React.createElement(StudentProvider, { user: initialUser }, React.createElement(Container, null, React.createElement(Probe), React.createElement(ProfileView))));
+  return { tree, profiles, logic, redirects, requests, setUser: next => { user = next; }, get progress() { return snapshot; }, get student() { return identity; } };
 }
 function seed(app) {
   window.localStorage.clear(); window.sessionStorage.clear();
-  app.auth.authenticateDemo("student@example.test", app.auth.DEMO_PASSWORD, false, false);
   const progress = app.logic.emptyProgress();
   progress.lessons = ["html-introduction"];
   progress.projects = ["portfolio"];
@@ -148,7 +155,7 @@ test("learning reset requires confirmation and preserves profile, theme, other s
     assert.equal(window.localStorage.getItem(app.profiles.profileKey("student")), profileBefore);
     assert.equal(window.localStorage.getItem(app.logic.progressKey("other")), otherBefore);
     assert.equal(window.localStorage.getItem("decode-theme"), "dark");
-    await click(target, "Log out"); assert.equal(app.auth.restoreSession(), null); assert.ok(app.redirects.includes("/login"));
+    await click(target, "Log out"); assert.ok(app.requests.some(request => request.url === "/api/auth/logout" && request.options.method === "POST")); assert.ok(app.redirects.includes("/login"));
     assert.equal(window.localStorage.getItem(app.profiles.profileKey("student")), profileBefore);
     assert.equal(target.errors.length, 0);
   } finally { await target.dispose(); document.documentElement.dataset.theme = "light"; }
@@ -157,7 +164,7 @@ test("learning reset requires confirmation and preserves profile, theme, other s
 test("profile values stay isolated by account and unauthenticated sessions cannot render the profile", async () => {
   const app = application(); seed(app);
   app.profiles.saveProfile(window.localStorage, "student", { version: 1, displayName: "Original Builder", avatar: "astronaut" });
-  app.auth.authenticateDemo("other@example.test", app.auth.DEMO_PASSWORD, true, false);
+  app.setUser({ id: "other", name: "Learner other", email: "other@example.test", role: "STUDENT" });
   const target = await mount(app);
   try {
     assert.equal(app.student.id, "other"); assert.equal(app.student.label, "Learner other");
@@ -165,7 +172,7 @@ test("profile values stay isolated by account and unauthenticated sessions canno
     assert.equal(app.progress.lessons.length, 0);
     assert.equal(app.profiles.readProfile(window.localStorage, "student").displayName, "Original Builder");
   } finally { await target.dispose(); }
-  app.auth.logoutDemo(); const loggedOut = await mount(app);
+  app.setUser(null); const loggedOut = await mount(app);
   try { assert.equal(loggedOut.container.querySelector("#profile-name"), null); assert.ok(app.redirects.includes("/login")); }
   finally { await loggedOut.dispose(); }
 });

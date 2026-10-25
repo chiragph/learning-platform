@@ -67,18 +67,18 @@ The API listens on port `4000` by default (override it with `PORT`). Once it is
 running, check it from a second PowerShell terminal:
 
 ```powershell
-Invoke-RestMethod http://localhost:4000/health
-Invoke-RestMethod http://localhost:4000/health/database
+Invoke-RestMethod http://localhost:4000/api/health
+Invoke-RestMethod http://localhost:4000/api/health/database
 ```
 
-`/health` checks that the API is running. `/health/database` returns
+`/api/health` checks that the API is running. `/api/health/database` returns
 `{ "status": "ok", "database": "connected" }` only when Prisma can query the
 `users` table, even if it has no rows. It returns HTTP `503` if PostgreSQL is
 unreachable, credentials are wrong, or the migration has not been applied.
 Database connections and queries have five-second timeouts.
 
 The backend connects lazily, so a successful build or an HTTP `200` from
-`/health` does not prove that the database is ready.
+`/api/health` does not prove that the database is ready.
 
 ## Checks that do not require PostgreSQL
 
@@ -93,7 +93,7 @@ npm.cmd run lint
 Copy `.env.example` to `.env` first if needed; the placeholder is sufficient for
 these checks. The end-to-end suite substitutes the database provider to verify
 HTTP behavior, including readiness failures. It does not apply migrations or
-prove a real PostgreSQL connection; use `/health/database` for that final check.
+prove a real PostgreSQL connection; use `/api/health/database` for that final check.
 
 ## Working with teammates
 

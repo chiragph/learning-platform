@@ -100,7 +100,7 @@ export function CodeWorkspace({ workspaceId, starter, check, onCheck, initialLan
     setRun({ token, document: buildPreview(currentCode.current, token, check, imagesEnabled ? { images: images.current, allowOnlineImages: true } : undefined) });
   }, [check, imagesEnabled]);
   const save = useCallback(() => {
-    if (update((p) => ({ ...p, drafts: { ...p.drafts, [workspaceId]: currentCode.current } }))) setSaveNotice("Draft saved in this browser for this demo account.");
+    if (update((p) => ({ ...p, drafts: { ...p.drafts, [workspaceId]: currentCode.current } }))) setSaveNotice("Draft saved in this browser for this account.");
     else setSaveNotice("Draft could not be saved. Copy your code before leaving.");
   }, [update, workspaceId]);
   const revealEditor = useCallback(() => {

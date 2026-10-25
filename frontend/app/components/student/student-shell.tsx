@@ -96,7 +96,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
         <details ref={profile} className="student-profile-menu">
           <summary aria-label={`Open profile menu for ${student.label}`}>
             <StudentAvatar avatar={studentProfile?.profile.avatar} className="student-header-avatar" />
-            <span className="student-profile-label"><strong>{student.label}</strong><span>Student · local demo</span></span>
+            <span className="student-profile-label"><strong>{student.label}</strong><span>Student account</span></span>
             <StudentIcon name="chevron" className="student-profile-chevron" />
           </summary>
           <div><p>{student.label}<span className="student-muted">{student.email}</span></p><Link href="/profile" onClick={() => profile.current?.removeAttribute("open")}>View profile <StudentIcon name="arrow" /></Link><LogoutButton /></div>
@@ -115,7 +115,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
             {group.items.map(({ href, label, icon }) => <Link className="student-nav-link" key={href} href={href} aria-label={label} aria-describedby={tooltip?.label === label ? "student-nav-tooltip" : undefined} onFocus={(event) => showTooltip(event.currentTarget, label)} onBlur={() => setTooltip(null)} onMouseEnter={(event) => showTooltip(event.currentTarget, label)} onMouseLeave={() => setTooltip(null)} aria-current={active?.href === href ? "page" : undefined} onClick={() => { setOpen(false); setTooltip(null); }}><StudentIcon name={icon} /><span>{label}</span><span className="student-nav-dot" aria-hidden="true" /></Link>)}
           </div>)}
         </nav>
-        <div className="student-sidebar-foot"><span className="student-demo-badge"><span aria-hidden="true" />Local demo workspace</span><p>Progress stays in this browser. Demo sign-in is not secure authentication.</p><LogoutButton /><Link className="student-sidebar-home" href="/">Back to DECODE home <StudentIcon name="arrow" /></Link></div>
+        <div className="student-sidebar-foot"><span className="student-demo-badge"><span aria-hidden="true" />Browser-local learning</span><p>Progress and code drafts stay in this browser for your account.</p><LogoutButton /><Link className="student-sidebar-home" href="/">Back to DECODE home <StudentIcon name="arrow" /></Link></div>
       </aside>
       {collapsed && tooltip && <span id="student-nav-tooltip" role="tooltip" className="student-nav-tooltip" style={{ top: tooltip.top }}>{tooltip.label}</span>}
       <main id="student-content" tabIndex={-1} inert={open} className="student-main"><StudentNavigationProvider><ProgressProvider key={student.id}><ActivityVisitTracker />{children}</ProgressProvider></StudentNavigationProvider></main>
