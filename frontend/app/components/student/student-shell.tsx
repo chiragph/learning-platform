@@ -7,52 +7,70 @@ import { Wordmark } from "../landing/wordmark";
 import { ThemeToggle } from "../theme-toggle";
 import { LogoutButton, useStudent } from "./student-provider";
 import { ProgressProvider } from "./progress-provider";
+import { ActivityVisitTracker } from "./activity-visit-tracker";
 import { StudentIcon, type StudentIconName } from "./student-icon";
+import { StudentNavigationProvider } from "./page-navigation";
+import { useOptionalStudentProfile } from "./profile-provider";
+import { StudentAvatar } from "./student-avatar";
+import "./student-interactions.css";
+import "./sidebar.css";
 
 const groups: { label: string; items: { href: string; label: string; icon: StudentIconName }[] }[] = [
   { label: "Learn", items: [
-    { href: "/dashboard", label: "Overview", icon: "dashboard" },
-    { href: "/courses", label: "My courses", icon: "courses" },
-    { href: "/lessons", label: "Theory lessons", icon: "lesson" },
-    { href: "/quizzes", label: "Quizzes", icon: "quiz" },
+    { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+    { href: "/courses", label: "My Learning", icon: "courses" },
+    { href: "/playground", label: "Code Playground", icon: "code" },
   ] },
-  { label: "Build", items: [
-    { href: "/playground", label: "Code playground", icon: "code" },
-    { href: "/challenges", label: "Coding challenges", icon: "challenge" },
-    { href: "/projects", label: "Projects", icon: "project" },
-  ] },
-  { label: "Your journey", items: [
-    { href: "/progress", label: "My progress", icon: "progress" },
+  { label: "Account", items: [
+    { href: "/progress", label: "My Progress", icon: "progress" },
     { href: "/profile", label: "Profile", icon: "profile" },
   ] },
 ];
 
 export function StudentShell({ children }: { children: ReactNode }) {
   const student = useStudent();
+  const studentProfile = useOptionalStudentProfile();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [tooltip, setTooltip] = useState<{ label: string; top: number } | null>(null);
+  function showTooltip(target: HTMLAnchorElement, label: string) {
+    if (collapsed && window.matchMedia("(min-width: 761px)").matches) { const bounds = target.getBoundingClientRect(); setTooltip({ label, top: bounds.top + bounds.height / 2 }); }
+  }
+  useEffect(() => {
+    const restore = () => { try { setCollapsed(window.localStorage.getItem("decode-sidebar-collapsed") === "true"); } catch { /* Optional UI preference. */ } };
+    restore();
+    const storage = (event: StorageEvent) => { if (event.key === "decode-sidebar-collapsed" || event.key === null) restore(); };
+    window.addEventListener("storage", storage); return () => window.removeEventListener("storage", storage);
+  }, []);
+  function toggleSidebar() {
+    setTooltip(null);
+    const next = !collapsed; setCollapsed(next);
+    try { window.localStorage.setItem("decode-sidebar-collapsed", String(next)); } catch { /* Still works for this visit. */ }
+  }
   const menu = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const profile = useRef<HTMLDetailsElement>(null);
-  const active = groups.flatMap((g) => g.items).find((item) => pathname === item.href || pathname.startsWith(item.href + "/"));
+  const learningRoute = /^\/(lessons|quizzes|challenges|projects|activities)(\/|$)/.test(pathname);
+  const active = groups.flatMap((g) => g.items).find((item) => pathname === item.href || pathname.startsWith(item.href + "/") || item.href === "/courses" && learningRoute);
 
   function closeNavigation() {
     setOpen(false);
-    requestAnimationFrame(() => menu.current?.focus());
+    requestAnimationFrame(() => menu.current?.focus({ preventScroll: true }));
   }
 
   useEffect(() => {
     const closeProfile = (event: PointerEvent) => { if (!profile.current?.contains(event.target as Node)) profile.current?.removeAttribute("open"); };
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape" && profile.current?.open) { profile.current.removeAttribute("open"); profile.current.querySelector("summary")?.focus(); } };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { setTooltip(null); if (profile.current?.open) { profile.current.removeAttribute("open"); profile.current.querySelector("summary")?.focus(); } } };
     window.addEventListener("pointerdown", closeProfile); window.addEventListener("keydown", escape);
     return () => { window.removeEventListener("pointerdown", closeProfile); window.removeEventListener("keydown", escape); };
   }, []);
 
   useEffect(() => {
     if (!open) return;
-    sidebar.current?.querySelector<HTMLAnchorElement>("a[aria-current]")?.focus();
+    sidebar.current?.querySelector<HTMLAnchorElement>("a[aria-current]")?.focus({ preventScroll: true });
     const keyboard = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setOpen(false); requestAnimationFrame(() => menu.current?.focus()); }
+      if (event.key === "Escape") { setOpen(false); requestAnimationFrame(() => menu.current?.focus({ preventScroll: true })); }
       if (event.key !== "Tab") return;
       const focusable = sidebar.current?.querySelectorAll<HTMLElement>("a[href], button:not(:disabled)");
       if (!focusable?.length) return;
@@ -68,7 +86,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
     return () => { document.body.style.overflow = previous; window.removeEventListener("keydown", keyboard); width.removeEventListener("change", closeOnDesktop); };
   }, [open]);
 
-  return <div className="decode student-app">
+  return <div className="decode student-app" data-sidebar-collapsed={collapsed}>
     <a href="#student-content" className="decode-skip">Skip to learning content</a>
     <header className="student-header" inert={open}>
       <Link href="/dashboard" className="student-brand" aria-label="DECODE dashboard"><Wordmark /></Link>
@@ -77,7 +95,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
         <ThemeToggle />
         <details ref={profile} className="student-profile-menu">
           <summary aria-label={`Open profile menu for ${student.label}`}>
-            <span className="student-avatar">{student.id.slice(0, 1).toUpperCase()}</span>
+            <StudentAvatar avatar={studentProfile?.profile.avatar} className="student-header-avatar" />
             <span className="student-profile-label"><strong>{student.label}</strong><span>Student · local demo</span></span>
             <StudentIcon name="chevron" className="student-profile-chevron" />
           </summary>
@@ -90,15 +108,17 @@ export function StudentShell({ children }: { children: ReactNode }) {
       {open && <button className="student-nav-backdrop" aria-label="Close navigation" tabIndex={-1} onClick={closeNavigation} />}
       <aside ref={sidebar} id="student-navigation" className={`student-sidebar${open ? " open" : ""}`} role={open ? "dialog" : undefined} aria-modal={open ? true : undefined} aria-label={open ? "Student navigation" : undefined}>
         <div className="student-mobile-nav-heading"><span>Learning workspace</span><button className="student-icon-button" onClick={closeNavigation} aria-label="Close navigation"><StudentIcon name="close" /></button></div>
-        <nav aria-label="Student">
+        <button className="student-sidebar-toggle" onClick={toggleSidebar} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} aria-controls="student-sidebar-links" title={collapsed ? "Expand sidebar" : "Collapse sidebar"}><StudentIcon name="chevron" /><span>{collapsed ? "Expand" : "Collapse sidebar"}</span></button>
+        <nav id="student-sidebar-links" aria-label="Student">
           {groups.map((group) => <div className="student-nav-group" key={group.label}>
             <p className="student-nav-label">{group.label}</p>
-            {group.items.map(({ href, label, icon }) => <Link className="student-nav-link" key={href} href={href} aria-current={pathname === href || pathname.startsWith(href + "/") ? "page" : undefined} onClick={() => setOpen(false)}><StudentIcon name={icon} /><span>{label}</span><span className="student-nav-dot" aria-hidden="true" /></Link>)}
+            {group.items.map(({ href, label, icon }) => <Link className="student-nav-link" key={href} href={href} aria-label={label} aria-describedby={tooltip?.label === label ? "student-nav-tooltip" : undefined} onFocus={(event) => showTooltip(event.currentTarget, label)} onBlur={() => setTooltip(null)} onMouseEnter={(event) => showTooltip(event.currentTarget, label)} onMouseLeave={() => setTooltip(null)} aria-current={active?.href === href ? "page" : undefined} onClick={() => { setOpen(false); setTooltip(null); }}><StudentIcon name={icon} /><span>{label}</span><span className="student-nav-dot" aria-hidden="true" /></Link>)}
           </div>)}
         </nav>
         <div className="student-sidebar-foot"><span className="student-demo-badge"><span aria-hidden="true" />Local demo workspace</span><p>Progress stays in this browser. Demo sign-in is not secure authentication.</p><LogoutButton /><Link className="student-sidebar-home" href="/">Back to DECODE home <StudentIcon name="arrow" /></Link></div>
       </aside>
-      <main id="student-content" tabIndex={-1} inert={open} className="student-main"><ProgressProvider key={student.id}>{children}</ProgressProvider></main>
+      {collapsed && tooltip && <span id="student-nav-tooltip" role="tooltip" className="student-nav-tooltip" style={{ top: tooltip.top }}>{tooltip.label}</span>}
+      <main id="student-content" tabIndex={-1} inert={open} className="student-main"><StudentNavigationProvider><ProgressProvider key={student.id}><ActivityVisitTracker />{children}</ProgressProvider></StudentNavigationProvider></main>
     </div>
   </div>;
 }

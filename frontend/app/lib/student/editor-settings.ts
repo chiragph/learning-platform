@@ -2,6 +2,7 @@ import type { editor } from "monaco-editor";
 import type { Subject } from "./types";
 
 export const MAX_CODE_LENGTH = 100000;
+export const EDITOR_THEME = "vs-dark";
 export const fileNames: Record<Subject, string> = { html: "index.html", css: "styles.css", javascript: "script.js" };
 export function modelBase(accountId: string, workspaceId: string, instanceId: string) {
   return `file:///decode/${encodeURIComponent(accountId)}/${encodeURIComponent(workspaceId)}/${encodeURIComponent(instanceId)}/`;

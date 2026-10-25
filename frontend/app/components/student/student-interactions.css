@@ -1,0 +1,23 @@
+@layer components {
+  .student-header-avatar { width:40px; height:40px; flex-shrink:0; border-radius:12px; }
+  .student-app :where(a,button,input,select,summary,[role="tab"],[role="separator"]):focus-visible { outline:2px solid var(--action); outline-offset:3px; }
+  .student-app .student-button { transition:background-color 150ms,border-color 150ms,box-shadow 150ms,transform 120ms; }
+  .student-app .student-button:hover:not(:disabled) { box-shadow:0 3px 9px color-mix(in srgb,var(--action) 14%,transparent); }
+  .student-app .student-button:active:not(:disabled) { transform:translateY(1px) scale(.99); box-shadow:none; }
+  .student-disclosure { display:grid; grid-template-rows:0fr; opacity:0; visibility:hidden; transition:grid-template-rows 180ms ease,opacity 150ms ease,visibility 0s 180ms; }
+  .student-disclosure[data-open="true"] { grid-template-rows:1fr; opacity:1; visibility:visible; transition:grid-template-rows 180ms ease,opacity 150ms ease,visibility 0s; }
+  .student-disclosure-clip { min-height:0; overflow:hidden; }
+  .curriculum-toolbar [role="tab"] { transition:color 150ms,border-color 150ms; }
+  .curriculum-course-list:not([hidden]) { animation:student-panel-enter 150ms ease both; }
+  .student-app .student-progress::-webkit-progress-value { transition:width 300ms ease; }
+  .student-app .student-progress::-moz-progress-bar { transition:width 300ms ease; }
+  .student-completion-feedback:not(:empty) { color:var(--action)!important; font-size:12px!important; animation:student-panel-enter 180ms ease both; }
+  @keyframes student-panel-enter { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+  @media(prefers-reduced-motion:reduce) {
+    .student-disclosure,.student-app .student-button,.curriculum-toolbar [role="tab"],.student-app .student-ring-value { transition:none!important; }
+    .student-app .student-progress::-webkit-progress-value { transition:none!important; }
+    .student-app .student-progress::-moz-progress-bar { transition:none!important; }
+    .curriculum-course-list:not([hidden]),.student-completion-feedback:not(:empty) { animation:none!important; }
+    .student-app .student-button:active:not(:disabled) { transform:none; }
+  }
+}

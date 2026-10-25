@@ -1,20 +1,14 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { templates } from "@/app/lib/student/templates";
 import { PageHeading } from "./learning-overview";
 import { CodeWorkspace } from "./code-workspace";
 import { StudentIcon } from "./student-icon";
+import { useStudentPageEntry } from "./page-navigation";
 
 export function PlaygroundView() {
-  const entered = useRef(false);
-  useLayoutEffect(() => {
-    // Only this route's first entry starts at its heading. Do not scroll again
-    // on editor load, theme changes, template changes or cached Activity resume.
-    if (entered.current) return;
-    entered.current = true;
-    if (!window.location.hash) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, []);
+  useStudentPageEntry();
   const [template, setTemplate] = useState(templates[0]);
   const [pending, setPending] = useState<(typeof templates)[number] | null>(null);
   const [dirty, setDirty] = useState(false);

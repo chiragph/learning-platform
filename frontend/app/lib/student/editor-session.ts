@@ -1,5 +1,8 @@
 import type * as Monaco from "monaco-editor";
 import type { Subject } from "./types";
+import { acquireHtmlEmmet } from "./editor-emmet";
+
+export type EditorControls = { focus: () => boolean; insert: (text: string) => boolean };
 
 export type EditorState = {
   path: string; language: Subject; value: string;
@@ -42,7 +45,13 @@ export function createEditorSession(monaco: typeof Monaco, container: HTMLElemen
     if (model) read().onDiagnostics(monaco.editor.getModelMarkers({ resource: model.uri }).filter((marker) => marker.severity >= monaco.MarkerSeverity.Warning).length);
   }
   try {
+    const emmet = acquireHtmlEmmet(monaco);
+    subscriptions.push(emmet);
     editor = monaco.editor.create(container, { ...options, model: modelFor(read()) });
+    subscriptions.push(editor.addAction({ id: "decode-emmet-tab", label: "DECODE: Expand HTML abbreviation", keybindings: [monaco.KeyCode.Tab], precondition: "editorTextFocus && !editorReadonly && !editorTabMovesFocus && !suggestWidgetVisible && !inSnippetMode", run: async () => {
+      if (disposed) return;
+      if (!await emmet.expand(editor, () => !disposed) && !disposed) editor.trigger("decode-emmet", "tab", null);
+    } }));
     subscriptions.push(editor.addAction({ id: "decode-run", label: "DECODE: Run code", keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter], run: () => { if (!disposed) read().onRun(); } }));
     subscriptions.push(editor.addAction({ id: "decode-save", label: "DECODE: Save draft", keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS], run: () => { if (!disposed) read().onSave(); } }));
     subscriptions.push(editor.onDidChangeModelContent(() => {
@@ -62,6 +71,15 @@ export function createEditorSession(monaco: typeof Monaco, container: HTMLElemen
     throw error;
   }
   return {
+    focus() { if (disposed) return false; editor.layout(); editor.focus(); return true; },
+    insert(text: string) {
+      if (disposed) return false;
+      const selection = editor.getSelection();
+      if (!selection) return false;
+      editor.pushUndoStop();
+      editor.executeEdits("decode-insert", [{ range: selection, text, forceMoveMarkers: true }]);
+      editor.pushUndoStop(); editor.focus(); return true;
+    },
     update(state: EditorState, nextOptions: Monaco.editor.IStandaloneEditorConstructionOptions) {
       if (disposed) return;
       changing = true;

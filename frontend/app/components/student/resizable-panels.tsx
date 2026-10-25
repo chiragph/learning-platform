@@ -11,7 +11,7 @@ export function ResizablePanels({ editor, preview, embedded = false, id }: { edi
   const frame = useRef<number | null>(null);
   useLayoutEffect(() => {
     if (!root.current) return;
-    const measure = (width: number) => setWide(!embedded && width >= 720);
+    const measure = (width: number) => setWide(width >= (embedded ? 760 : 720));
     measure(root.current.getBoundingClientRect().width);
     const observer = new ResizeObserver(([entry]) => measure(entry.contentRect.width));
     observer.observe(root.current); return () => observer.disconnect();

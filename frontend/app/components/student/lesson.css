@@ -1,4 +1,5 @@
 @layer components {
+  .student-outline-activity-type { display:block; font-size:9px; color:var(--secondary); font-weight:400; margin-top:3px; }
   .student-theory-library { max-width:1040px; margin:auto; }
   .student-lesson-search { display:flex; align-items:center; flex-wrap:wrap; gap:12px; border-block:1px solid var(--border); padding:16px 0; margin-bottom:24px; }
   .student-lesson-search label { font-size:12px; font-weight:550; }
@@ -106,14 +107,23 @@
   .student-reading-layout.with-practice { grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr); gap:20px; }
   .student-reading-layout.with-practice>.student-lesson-course-sidebar { display:none; }
   .student-lesson-mobile-contents.practice-visible { display:block; }
-  .student-lesson-practice-panel { position:sticky; top:88px; min-width:0; max-height:calc(100dvh - 108px); overflow:auto; border:1px solid var(--border); border-radius:12px; padding:16px; background:var(--student-soft,var(--muted-surface)); }
+  .student-lesson-practice-panel { position:static; min-width:0; max-height:none; overflow:visible; border:1px solid var(--border); border-radius:12px; padding:16px; background:var(--student-soft,var(--muted-surface)); }
   .student-lesson-practice-heading { display:flex; align-items:center; flex-wrap:wrap; justify-content:space-between; gap:8px; }
-  .student-lesson-practice-heading>span { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; }
-  .student-lesson-practice-heading>span svg { width:16px; height:16px; color:var(--action); }
+  .student-lesson-practice-heading>h2 { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; }
+  .student-lesson-practice-heading>h2 svg { width:16px; height:16px; color:var(--action); }
   .student-lesson-practice-heading>button { min-height:40px; color:var(--action); font-size:10px; cursor:pointer; }
+  .student-lesson-practice-heading>h2 { scroll-margin-top:96px; }
   .student-lesson-practice-panel>p { font-size:11px; line-height:1.8; color:var(--secondary); margin-top:7px; }
+  .student-lesson-practice-panel>p.student-lesson-practice-instructions { color:var(--foreground); font-size:12px; }
+  .student-lesson-practice-panel[hidden] { display:none!important; }
   @media(max-width:1279px) { .student-reading-layout.with-practice { grid-template-columns:minmax(0,1fr); } .student-lesson-practice-panel { position:static; max-height:none; overflow:visible; } }
   @media(max-width:1000px) { .student-reading-layout { grid-template-columns:minmax(0,1fr); } .student-lesson-course-sidebar { display:none; } .student-lesson-mobile-contents { display:block; } .student-reading-article { padding:26px; } }
   @media(max-width:760px) { .student-reading-header { display:block; } .student-lesson-completion-badge { margin-top:14px; } .student-lesson-progress-row { gap:10px; } .student-lesson-progress-row>div { margin-left:0; width:100%; } .student-lesson-progress-row>div>button { justify-content:center; flex:1; min-height:44px; } .student-reading-article { padding:20px; } .student-reading-article section>p { font-size:14px; line-height:1.95; } .student-reading-article p.student-reading-lead { font-size:15px; } .student-reading-practice { padding:18px!important; } .student-reading-section-label h2 { font-size:17px; } .student-reading-navigation { gap:10px; } .student-reading-navigation a { padding:14px; } .student-lesson-practice-panel { padding:12px; } .student-theory-course-header { padding:18px; gap:12px; } .student-theory-course-header>a { margin:0 0 0 60px; } .student-theory-course li>a { gap:8px; } .student-theory-lesson-state { display:none; } .student-theory-course li h3 { font-size:13px; } .student-theory-course li p { font-size:10px; } .student-lesson-search { align-items:flex-start; } .student-lesson-search input { width:100%; font-size:16px; } .student-lesson-search label { width:100%; } .student-lesson-search p { margin-left:0; } }
   @media(prefers-reduced-motion:reduce) { .student-theory-workspace *, .student-theory-library * { transition:none!important; animation:none!important; } }
+}
+
+@layer components {
+  .student-lesson-practice-panel { margin-top:22px; }
+  .student-reading-completion-card { margin-top:22px; padding:22px; background:var(--surface); border:1px solid var(--border); border-radius:12px; }
+  .student-reading-completion-card>p { color:var(--secondary); line-height:1.8; margin:12px 0; }
 }

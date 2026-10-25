@@ -34,6 +34,7 @@ test("Monaco settings route every supported language to a local, parseable worke
     assert.ok(fs.statSync(filename).size > 10000);
     assert.doesNotThrow(() => new vm.Script(fs.readFileSync(filename, "utf8"), { filename }));
   }
+  assert.equal(settings.EDITOR_THEME, "vs-dark");
   assert.equal(settings.editorOptions.lineNumbers, "on");
   assert.equal(settings.editorOptions.autoIndent, "full");
   assert.equal(settings.editorOptions.matchBrackets, "always");
@@ -44,79 +45,149 @@ test("Monaco settings route every supported language to a local, parseable worke
   assert.equal(settings.clampSplit(Number.NaN), 50);
 });
 
-test("optional lesson workspaces use actual examples and persist without losing existing drafts", () => {
+test("all theory workspaces use blank starters and preserve isolated lesson drafts", () => {
   const context = loader(); const { allLessons } = context.load("courses"); const { lessonStarter, practiceLessonIds } = context.load("lesson-practice"); const logic = context.load("progress");
-  assert.equal(practiceLessonIds.length, 12); assert.ok(practiceLessonIds.length < allLessons.length);
+  assert.equal(practiceLessonIds.length, 25); assert.equal(practiceLessonIds.length, allLessons.length);
   const p = logic.emptyProgress();
   p.drafts["project-calculator"] = { html: "<h1>Existing project</h1>", css: "", javascript: "" };
   for (const id of practiceLessonIds) {
     const lesson = allLessons.find(l => l.id === id); assert.ok(lesson);
     const starter = lessonStarter(lesson); assert.ok(logic.isCode(starter));
-    assert.ok(starter[lesson.language].includes(lesson.code));
+    assert.deepEqual(plain(starter), { html: "<!-- Write your HTML code here -->", css: "/* Write your CSS code here */", javascript: "// Write your JavaScript code here" });
+    assert.ok(!starter[lesson.language].includes(lesson.code));
     p.drafts[`lesson-${id}`] = starter;
   }
-  assert.equal(lessonStarter(allLessons.find(l => l.id === "html-introduction")), null);
+  assert.equal(lessonStarter(allLessons[0]).html, "<!-- Write your HTML code here -->");
   const restored = logic.normalizeProgress(JSON.parse(JSON.stringify(p)));
-  assert.equal(Object.keys(restored.drafts).length, 13);
+  assert.equal(Object.keys(restored.drafts).length, 26);
   assert.equal(restored.drafts["project-calculator"].html, "<h1>Existing project</h1>");
   assert.equal(restored.lessons.length, 0);
 });
 
-test("curriculum covers all existing content with stable, resolvable ordered items", () => {
+test("curriculum preserves every legacy reference, unique activity ID, route and display order", () => {
   const context = loader(); const curriculum = context.load("curriculum"); const { courses } = context.load("courses");
   const { challenges } = context.load("challenges"); const { projects } = context.load("projects");
-  const projectIds = new Set();
+  const repository = context.load("curriculum-repository");
+  const projectIds = new Set(); const globalIds = [];
+  const routeKinds = { lesson: "lessons", quiz: "quizzes", exercise: "challenges", project: "projects" };
+  const types = { lesson: "theory", quiz: "quiz", exercise: "lab", project: "workshop" };
   for (const course of courses) {
     const entry = curriculum.curricula[course.id]; const items = curriculum.courseItems(course.id);
     assert.equal(entry.modules.length, 3); assert.equal(entry.objectives.length, 3);
-    assert.equal(new Set(items.map(curriculum.itemKey)).size, items.length);
-    assert.deepEqual(plain(items.filter(i => i.kind === "lesson").map(i => i.id)), plain(course.lessons.map(l => l.id)));
-    assert.deepEqual(plain(items.filter(i => i.kind === "exercise").map(i => i.id)), plain(challenges.filter(c => c.subject === course.id).map(c => c.id)));
-    assert.equal(items.filter(i => i.kind === "quiz").length, 1);
-    for (const item of items) { assert.ok(curriculum.itemDetails(item)?.href.startsWith("/")); assert.ok(item.minutes > 0); if (item.kind === "project") projectIds.add(item.id); }
+    assert.deepEqual(plain(items.filter(i => i.type === "theory").map(i => i.reference.id)), plain(course.lessons.map(l => l.id)));
+    assert.deepEqual(plain(items.filter(i => i.type === "lab").map(i => i.reference.id)), plain(challenges.filter(c => c.subject === course.id).map(c => c.id)));
+    assert.equal(items.filter(i => i.type === "quiz").length, 1);
+    for (const topic of entry.modules) assert.deepEqual(plain(topic.activities.map(a => a.order)), plain(topic.activities.map((_, i) => i + 1)));
+    for (const item of items) {
+      globalIds.push(item.id);
+      assert.equal(item.id, repository.legacyActivityId(item.reference));
+      assert.equal(item.type, types[item.reference.kind]);
+      assert.equal(item.href, "/" + routeKinds[item.reference.kind] + "/" + item.reference.id);
+      assert.equal(curriculum.activityForRoute(item.href).activity.id, item.id);
+      assert.equal(curriculum.findCurriculumActivity(item.id).course.id, course.id);
+      assert.ok(item.title && item.description && item.minutes > 0);
+      assert.ok(fs.existsSync("app/(student)/" + routeKinds[item.reference.kind] + "/[id]/page.tsx"));
+      if (item.type === "workshop") projectIds.add(item.reference.id);
+    }
   }
+  assert.equal(new Set(globalIds).size, globalIds.length);
   assert.deepEqual([...projectIds].sort(), plain(projects.map(p => p.id).sort()));
+  assert.equal(curriculum.findCurriculumActivity("missing"), undefined);
+  assert.equal(curriculum.activityForRoute("/lessons/missing"), undefined);
 });
 
-test("curriculum completion preserves core percentages and keeps projects separate", () => {
+test("ordering uses explicit course, module and activity order without mutating repository data", () => {
+  const curriculum = loader().load("curriculum");
+  const path = plain(curriculum.learningPath); const expected = curriculum.activityLocations().map(e => e.activity.id);
+  path.courses.reverse();
+  for (const course of path.courses) { course.modules.reverse(); for (const topic of course.modules) topic.activities.reverse(); }
+  const before = JSON.stringify(path);
+  assert.deepEqual(plain(curriculum.activityLocations(path).map(e => e.activity.id)), plain(expected));
+  assert.equal(JSON.stringify(path), before);
+  path.courses.find(c => c.id === "javascript").order = 0;
+  assert.equal(curriculum.activityLocations(path)[0].course.id, "javascript");
+  const topic = path.courses.find(c => c.id === "html").modules.find(m => m.id === "html-first-page");
+  topic.activities.find(a => a.id === "exercise:html-heading").order = 0;
+  assert.equal(curriculum.activityLocations(path).find(e => e.course.id === "html").activity.id, "exercise:html-heading");
+});
+
+test("completion counts the actual curriculum including workshops, quiz best scores and safe empty states", () => {
   const context = loader(); const logic = context.load("progress"); const curriculum = context.load("curriculum");
   let progress = logic.emptyProgress();
-  assert.equal(curriculum.curriculumStats("html", progress).total, 11);
-  assert.equal(curriculum.curriculumStats("css", progress).total, 11);
-  assert.equal(curriculum.curriculumStats("javascript", progress).total, 12);
+  assert.equal(curriculum.curriculumStats("html", progress).total, 12);
+  assert.equal(curriculum.curriculumStats("css", progress).total, 12);
+  assert.equal(curriculum.curriculumStats("javascript", progress).total, 14);
   progress = logic.completePractice(progress, "projects", "portfolio", "now");
-  assert.equal(curriculum.itemComplete({ id: "portfolio", kind: "project" }, progress), true);
-  assert.equal(curriculum.curriculumStats("html", progress).percent, 0);
-  progress = logic.saveQuiz(progress, "html", 63, "now");
-  assert.equal(curriculum.itemComplete({ id: "html", kind: "quiz" }, progress), false);
-  progress = logic.saveQuiz(progress, "html", 75, "later");
-  assert.equal(curriculum.itemComplete({ id: "html", kind: "quiz" }, progress), true);
-  for (const item of curriculum.courseItems("html")) {
-    if (item.kind === "lesson") progress = logic.completeLesson(progress, item.id, item.id);
-    if (item.kind === "exercise") progress = logic.completePractice(progress, "challenges", item.id, item.id);
-  }
-  assert.equal(curriculum.curriculumStats("html", progress).percent, 100);
-  assert.equal(curriculum.nextCourseItem("html", progress), null);
+  assert.equal(curriculum.activityComplete(curriculum.findCurriculumActivity("project:portfolio").activity, progress), true);
+  assert.equal(curriculum.curriculumStats("html", progress).percent, 8);
+  progress = logic.saveQuiz(progress, "html", 69, "now");
+  const quiz = curriculum.findCurriculumActivity("quiz:html").activity;
+  assert.equal(curriculum.activityComplete(quiz, progress), false);
+  assert.equal(curriculum.activityStatus(quiz, progress), "in-progress");
+  progress = logic.saveQuiz(progress, "html", 70, "later");
+  progress = logic.saveQuiz(progress, "html", 20, "later");
+  assert.equal(curriculum.activityComplete(quiz, progress), true);
+  assert.deepEqual(plain(curriculum.completionStats([], progress)), { completed: 0, total: 0, percent: 0, isComplete: false });
+  const pending = { id: "upcoming-profile", title: "Profile workshop", type: "workshop", description: "Upcoming", order: 1, minutes: 20, availability: "upcoming", href: "/activities/upcoming-profile" };
+  assert.equal(curriculum.activityComplete(pending, progress), false);
+  assert.equal(curriculum.completionStats([pending], progress).percent, 0);
+  assert.equal(curriculum.completionStats([quiz, quiz], progress).total, 1);
 });
 
-test("learning suggestions distinguish first visit, resume, course continuation and completion", () => {
+test("Continue Learning resumes the most recent valid visit of every activity type, including completed activities", () => {
   const context = loader(); const logic = context.load("progress"); const curriculum = context.load("curriculum");
   let progress = logic.emptyProgress();
   assert.equal(curriculum.learningSuggestion(progress).reason, "path");
-  assert.equal(curriculum.learningSuggestion(progress).item.id, "html-introduction");
+  assert.equal(curriculum.learningSuggestion(progress).activity.reference.id, "html-introduction");
   progress.currentLesson = "css-flexbox";
-  assert.equal(curriculum.learningSuggestion(progress).reason, "resume");
-  assert.equal(curriculum.learningSuggestion(progress).item.id, "css-flexbox");
-  progress = logic.completeLesson(progress, "css-flexbox", "now");
-  assert.equal(curriculum.learningSuggestion(progress).reason, "course");
-  assert.equal(curriculum.learningSuggestion(progress).subject, "css");
-  for (const subject of ["html", "css", "javascript"]) for (const item of curriculum.courseItems(subject)) {
-    if (item.kind === "lesson") progress = logic.completeLesson(progress, item.id, item.id);
-    if (item.kind === "quiz") progress = logic.saveQuiz(progress, subject, 100, "now");
-    if (item.kind === "exercise") progress = logic.completePractice(progress, "challenges", item.id, item.id);
+  assert.equal(curriculum.learningSuggestion(progress).activity.id, "lesson:css-flexbox");
+  for (const [index, id] of ["lesson:html-text", "quiz:css", "exercise:javascript-button", "project:portfolio"].entries()) {
+    progress = curriculum.recordVisit(progress, id, "2026-10-25T12:0" + index + ":00Z");
+    assert.equal(curriculum.learningSuggestion(progress).activity.id, id);
+    assert.equal(curriculum.learningSuggestion(progress).reason, "resume");
+    assert.equal(curriculum.learningSuggestion(progress).module.id, curriculum.findCurriculumActivity(id).module.id);
   }
-  assert.equal(curriculum.learningSuggestion(progress), null);
-  assert.equal(progress.projects.length, 0);
+  progress = logic.completePractice(progress, "projects", "portfolio", "now");
+  assert.equal(curriculum.learningSuggestion(progress).activity.id, "project:portfolio");
+  assert.equal(curriculum.activityStatus(curriculum.learningSuggestion(progress).activity, progress), "completed");
+  assert.equal(curriculum.nextCourseItem("javascript", progress).id, "exercise:javascript-button");
+  assert.equal(curriculum.nextCourseItem("css", progress).id, "quiz:css");
+  progress.visits.reverse();
+  progress.visits.push({ activityId: "missing", at: "2099-01-01T00:00:00Z" }, { activityId: "quiz:html", at: "invalid" });
+  assert.equal(curriculum.mostRecentActivity(progress).activity.id, "project:portfolio");
+  assert.equal(curriculum.recordVisit(progress, "missing", "2026-10-25T12:00:00Z"), progress);
+  assert.equal(curriculum.recordVisit(progress, "quiz:html", "invalid"), progress);
+  const legacy = logic.emptyProgress();
+  legacy.activity = [{ id: "done", title: "Quiz result", href: "/quizzes/css", at: "2026-10-25T12:00:00Z" }];
+  assert.equal(curriculum.learningSuggestion(legacy).reason, "path");
+});
+
+test("visits persist separately without completing activities or disturbing legacy progress and drafts", () => {
+  const context = loader(); const logic = context.load("progress"); const curriculum = context.load("curriculum");
+  const old = logic.emptyProgress(); delete old.visits;
+  old.lessons = ["html-introduction"]; old.projects = ["portfolio"]; old.challenges = ["css-card"];
+  old.quizzes = { css: { latest: 40, best: 80, attempts: 2, at: "2026-10-25T00:00:00Z" } };
+  old.drafts["project-calculator"] = { html: "<h1>Saved</h1>", css: "", javascript: "console.log(1)" };
+  old.currentLesson = "css-flexbox";
+  const restored = logic.normalizeProgress(old);
+  for (const key of ["lessons", "projects", "challenges", "quizzes", "drafts", "currentLesson"]) assert.deepEqual(plain(restored[key]), plain(old[key]));
+  assert.equal(restored.visits.length, 0);
+  restored.drafts["lesson-html-forms"] = { html: "Form draft", css: "", javascript: "" };
+  assert.equal(curriculum.activityStatus(curriculum.findCurriculumActivity("lesson:html-forms").activity, restored), "in-progress");
+  const before = curriculum.curriculumStats("javascript", restored).completed;
+  let visited = curriculum.recordVisit(restored, "exercise:javascript-button", "2026-10-25T12:00:00Z");
+  assert.equal(curriculum.curriculumStats("javascript", visited).completed, before);
+  assert.equal(curriculum.activityStatus(curriculum.findCurriculumActivity("exercise:javascript-button").activity, visited), "in-progress");
+  assert.equal(restored.visits.length, 0);
+  visited = curriculum.recordVisit(visited, "exercise:javascript-button", "2026-10-25T13:00:00Z");
+  assert.equal(visited.visits.length, 1);
+  visited.visits.push({ activityId: "missing", at: "2026-10-25T14:00:00Z" }, { activityId: "quiz:html", at: "invalid" }, { activityId: "exercise:javascript-button", at: "2026-10-25T11:00:00Z" });
+  const saved = logic.normalizeProgress(JSON.parse(JSON.stringify(visited)));
+  assert.equal(saved.visits.length, 1);
+  assert.equal(saved.visits[0].at, "2026-10-25T13:00:00Z");
+  assert.equal(saved.drafts["project-calculator"].html, "<h1>Saved</h1>");
+  assert.notEqual(logic.progressKey("student-a"), logic.progressKey("student-b"));
+  assert.equal(curriculum.activityStatus(curriculum.findCurriculumActivity("lesson:html-document").activity, saved), "not-started");
 });
 
 test("quiz scoring, latest/best results and passed-quiz progress", () => {
@@ -232,22 +303,25 @@ test("saved drafts and progress restore per account, and reset is isolated", () 
   assert.equal(Object.keys(storage.readStorage(context.localStorage, key, null).drafts).length, 0);
 });
 
-test("all course units yield 100%, project completion remains separate", () => {
-  const context = loader(); const logic = context.load("progress"); const { courses } = context.load("courses"); const { challenges } = context.load("challenges");
+test("all actual curriculum activities yield 100% and explicit completion stays idempotent", () => {
+  const context = loader(); const logic = context.load("progress"); const curriculum = context.load("curriculum");
   let p = logic.emptyProgress();
-  for (const course of courses) {
-    for (const lesson of course.lessons) p = logic.completeLesson(p, lesson.id, lesson.id);
-    p = logic.saveQuiz(p, course.id, 100, "now");
-    const ids = challenges.filter((c) => c.subject === course.id).map((c) => c.id);
-    for (const id of ids) p = logic.completePractice(p, "challenges", id, id);
-    assert.equal(logic.courseProgress(p, course.id, ids).percent, 100);
+  for (const course of curriculum.curriculumCourses) {
+    for (const item of curriculum.courseItems(course.id)) {
+      const { kind, id } = item.reference;
+      if (kind === "lesson") p = logic.completeLesson(p, id, id);
+      if (kind === "quiz") p = logic.saveQuiz(p, course.id, 100, "now");
+      if (kind === "exercise") p = logic.completePractice(p, "challenges", id, id);
+      if (kind === "project") p = logic.completePractice(p, "projects", id, id);
+    }
+    assert.equal(logic.courseProgress(p, course.id).percent, 100);
+    assert.equal(curriculum.curriculumStats(course.id, p).isComplete, true);
   }
-  assert.equal(p.activity.length, 20);
-  assert.equal(p.projects.length, 0);
-  const withProject = logic.completePractice(p, "projects", "portfolio", "later");
-  assert.equal(withProject.projects.length, 1);
-  assert.equal(logic.completePractice(withProject, "projects", "portfolio", "later").activity.length, 20);
+  assert.equal(p.activity.length, 20); assert.equal(p.projects.length, 4);
+  assert.equal(logic.completePractice(p, "projects", "portfolio", "later"), p);
   assert.equal(logic.completePractice(p, "challenges", "unknown", "now"), p);
+  p.currentLesson = null;
+  assert.equal(curriculum.learningSuggestion(p), null);
 });
 
 test("corrupted storage and unknown content cannot inflate progress", () => {
@@ -265,8 +339,56 @@ test("lesson completion is idempotent, immutable and calculated consistently", (
   const done = logic.completeLesson(initial, "html-introduction", "2026-10-24T12:00:00Z");
   assert.equal(initial.lessons.length, 0); assert.equal(done.lessons.length, 1);
   assert.equal(logic.completeLesson(done, "html-introduction", "later").activity.length, 1);
-  assert.deepEqual(plain(logic.courseProgress(done, "html", ["html-heading", "html-link"])), { completed: 1, total: 11, percent: 9 });
+  assert.deepEqual(plain(logic.courseProgress(done, "html", ["html-heading", "html-link"])), { completed: 1, total: 12, percent: 8, isComplete: false });
   assert.equal(logic.recommendedLesson(done).id, "html-document");
   assert.equal(logic.normalizeProgress({ version: 1, lessons: ["bad", "html-introduction", "html-introduction"] }).lessons.length, 1);
   assert.equal(logic.normalizeProgress("invalid").lessons.length, 0);
+});
+
+test("lesson drafts stay isolated from each other, other workspaces, completion and other students", () => {
+  const context = loader(); const logic = context.load("progress"); const { allLessons } = context.load("courses");
+  const { lessonStarter } = context.load("lesson-practice"); const curriculum = context.load("curriculum");
+  const a = allLessons.find(l => l.id === "html-introduction"), b = allLessons.find(l => l.id === "css-introduction");
+  const p = logic.emptyProgress();
+  p.quizzes.html = { latest: 20, best: 60, attempts: 2, at: "2026-10-25T00:00:00Z" };
+  p.drafts["lesson-" + a.id] = { ...lessonStarter(a), html: "<h1>Lesson A draft</h1>" };
+  p.drafts["lesson-" + b.id] = { ...lessonStarter(b), css: "p { color: rebeccapurple; }" };
+  p.drafts["playground-welcome"] = { html: "Playground", css: "", javascript: "" };
+  context.load("storage").writeStorage(context.localStorage, logic.progressKey("student"), p);
+  const restored = logic.normalizeProgress(context.load("storage").readStorage(context.localStorage, logic.progressKey("student"), null));
+  assert.equal(restored.drafts["lesson-html-introduction"].html, "<h1>Lesson A draft</h1>");
+  assert.equal(restored.drafts["lesson-css-introduction"].css, "p { color: rebeccapurple; }");
+  assert.equal(restored.drafts["playground-welcome"].html, "Playground");
+  assert.equal(lessonStarter(a).html, "<!-- Write your HTML code here -->");
+  assert.equal(logic.normalizeProgress(context.load("storage").readStorage(context.localStorage, logic.progressKey("other"), null)).lessons.length, 0);
+  assert.equal(curriculum.curriculumStats("html", restored).completed, 0);
+  assert.equal(curriculum.activityLocations().length, 38);
+  assert.deepEqual(plain(restored.quizzes), plain(p.quizzes));
+});
+
+test("local profile edits normalize safely and cannot change authentication or learning records", () => {
+  const context = loader(); const profiles = context.load("student-profile"), logic = context.load("progress");
+  const auth = context.load("mock-auth");
+  assert.equal(profiles.profileAvatars.length, 14);
+  assert.equal(profiles.readProfile(context.localStorage, "student").displayName, "Learner student");
+  const learning = logic.emptyProgress(); learning.lessons = ["html-introduction"];
+  learning.drafts["lesson-html-introduction"] = { html: "Keep my code", css: "", javascript: "" };
+  context.load("storage").writeStorage(context.localStorage, logic.progressKey("student"), learning);
+  const before = context.localStorage.getItem(logic.progressKey("student"));
+  const saved = profiles.saveProfile(context.localStorage, "student", { version: 1, displayName: "  Demo   Builder  ", avatar: "fox", id: "admin" });
+  assert.equal(saved.displayName, "Demo Builder"); assert.equal(saved.avatar, "fox");
+  assert.equal(saved.id, undefined);
+  assert.equal(profiles.readProfile(context.localStorage, "student").displayName, "Demo Builder");
+  assert.equal(profiles.readProfile(context.localStorage, "other").displayName, "Learner other");
+  assert.notEqual(profiles.profileKey("student"), logic.progressKey("student"));
+  assert.equal(context.localStorage.getItem(logic.progressKey("student")), before);
+  const identity = auth.authenticateDemo("student@example.test", auth.DEMO_PASSWORD, false, false);
+  assert.equal(identity.id, "student"); assert.equal(identity.email, "student@example.test");
+  auth.logoutDemo();
+  assert.equal(profiles.readProfile(context.localStorage, "student").displayName, "Demo Builder");
+  const normalized = profiles.normalizeProfile({ version: 1, displayName: "", avatar: "https://example.com/avatar", email: "bad" }, "student");
+  assert.equal(normalized.displayName, "Learner student"); assert.equal(normalized.avatar, "owl"); assert.equal(normalized.email, undefined);
+  for (const name of [" ", "x", "x".repeat(41), "demo\nname", "demo\u0000name"]) assert.throws(() => profiles.saveProfile(context.localStorage, "student", { version: 1, displayName: name, avatar: "owl" }));
+  assert.equal(profiles.readProfile(context.localStorage, "student").displayName, "Demo Builder");
+  assert.throws(() => profiles.saveProfile({ getItem: () => null, setItem: () => { throw new Error("quota"); } }, "student", saved), /quota/);
 });

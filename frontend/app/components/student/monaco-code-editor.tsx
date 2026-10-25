@@ -2,26 +2,20 @@
 
 import { loader } from "@monaco-editor/react";
 import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { editorOptions } from "@/app/lib/student/editor-settings";
-import { createEditorSession, startEditorSession, type EditorSession } from "@/app/lib/student/editor-session";
+import { EDITOR_THEME, editorOptions } from "@/app/lib/student/editor-settings";
+import { createEditorSession, startEditorSession, type EditorSession, type EditorControls } from "@/app/lib/student/editor-session";
 import type { Subject } from "@/app/lib/student/types";
-import { defineDecodeThemes, monaco } from "./monaco-runtime";
+import { editorFontFamily, monaco } from "./monaco-runtime";
 
-function subscribeTheme(change: () => void) {
-  const observer = new MutationObserver(change);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-  return () => observer.disconnect();
-}
-const getTheme = () => document.documentElement.dataset.theme === "dark" ? "decode-dark" : "decode-light";
 function subscribeMotion(change: () => void) {
   const media = window.matchMedia("(prefers-reduced-motion: reduce)");
   media.addEventListener("change", change); return () => media.removeEventListener("change", change);
 }
 const getMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-type Props = { value: string; language: Subject; path: string; base: string; onChange: (value: string) => boolean; onRun: () => void; onSave: () => void; onReady: () => void; onDiagnostics: (count: number) => void };
+type Props = { value: string; language: Subject; path: string; base: string; onChange: (value: string) => boolean; onRun: () => void; onSave: () => void; onReady: (controls: EditorControls) => void; onDiagnostics: (count: number) => void };
 export default function MonacoCodeEditor(props: Props) {
-  const theme = useSyncExternalStore(subscribeTheme, getTheme, () => "decode-light");
+  const theme = EDITOR_THEME;
   const reducedMotion = useSyncExternalStore(subscribeMotion, getMotion, () => false);
   const container = useRef<HTMLDivElement>(null);
   const loading = useRef<HTMLDivElement>(null);
@@ -36,10 +30,10 @@ export default function MonacoCodeEditor(props: Props) {
     // Keep @monaco-editor/react's configured local loader, but own the editor
     // lifecycle: its <Editor> retains a disposed ref/ready flag on Activity resume.
     const stop = startEditorSession(loader.init(), () => {
-      const owned = createEditorSession(monaco, container.current!, () => callbacks.current, { ...configuration.current, fontFamily: defineDecodeThemes() });
+      const owned = createEditorSession(monaco, container.current!, () => callbacks.current, { ...configuration.current, fontFamily: editorFontFamily() });
       session.current = owned;
       if (loadingNode) loadingNode.hidden = true;
-      try { callbacks.current.onReady(); } catch (cause) { owned.dispose(); throw cause; }
+      try { callbacks.current.onReady(owned); } catch (cause) { owned.dispose(); throw cause; }
       return owned;
     }, (cause) => setError({ cause }));
     return () => {
