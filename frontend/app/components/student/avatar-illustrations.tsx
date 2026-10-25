@@ -1,0 +1,18 @@
+// Original vector artwork, shared by the profile picker and application header.
+export function AvatarIllustration({ character, ink, background }: { character: string; ink: string; background: string }) {
+  const eyes = <><circle cx="31" cy="41" r="2.2" fill={ink} /><circle cx="49" cy="41" r="2.2" fill={ink} /></>;
+  const smile = <path d="M35 53q5 5 10 0" fill="none" />;
+  switch (character) {
+    case "panda": return <><circle cx="24" cy="25" r="9" fill={ink} /><circle cx="56" cy="25" r="9" fill={ink} /><ellipse cx="40" cy="43" rx="23" ry="22" fill="white" /><ellipse cx="29" cy="41" rx="7" ry="9" fill={ink} /><ellipse cx="51" cy="41" rx="7" ry="9" fill={ink} /><path d="M29 40v2m22-2v2" stroke="white" /><path d="m37 50 3 3 3-3z" fill={ink} />{smile}</>;
+    case "bear": return <><circle cx="23" cy="26" r="9" fill={ink} /><circle cx="57" cy="26" r="9" fill={ink} /><ellipse cx="40" cy="44" rx="23" ry="22" fill="white" />{eyes}<ellipse cx="40" cy="52" rx="10" ry="8" fill={background} /><path d="m36 49 4 3 4-3z" fill={ink} />{smile}</>;
+    case "penguin": return <><path d="M20 51c0-44 40-44 40 0l-5 13H25z" fill={ink} /><path d="M27 37q5-13 13-4 8-9 13 4v18q-13 15-26 0z" fill="white" stroke="none" />{eyes}<path d="m35 49 5 5 5-5z" fill="#df9b44" stroke="none" /><path d="m19 44-5 10m47-10 5 10M29 66h7m8 0h7" /></>;
+    case "frog": return <><circle cx="26" cy="29" r="11" fill="white" /><circle cx="54" cy="29" r="11" fill="white" /><ellipse cx="40" cy="47" rx="26" ry="18" fill="white" /><circle cx="26" cy="29" r="3" fill={ink} /><circle cx="54" cy="29" r="3" fill={ink} /><path d="M27 48q13 15 26 0" fill="none" /><path d="M22 45h4m28 0h4" stroke="#d7969d" /></>;
+    case "rabbit": return <><ellipse cx="29" cy="23" rx="8" ry="18" fill="white" /><ellipse cx="51" cy="23" rx="8" ry="18" fill="white" /><path d="M29 13v13m22-13v13" stroke="#e6b1c9" strokeWidth="4" /><ellipse cx="40" cy="47" rx="23" ry="20" fill="white" />{eyes}<path d="m37 49 3 3 3-3z" fill={ink} />{smile}</>;
+    case "koala": return <><circle cx="18" cy="36" r="13" fill={ink} /><circle cx="62" cy="36" r="13" fill={ink} /><circle cx="18" cy="36" r="7" fill={background} /><circle cx="62" cy="36" r="7" fill={background} /><ellipse cx="40" cy="44" rx="24" ry="22" fill="white" />{eyes}<ellipse cx="40" cy="48" rx="6" ry="9" fill={ink} /><path d="M35 59q5 3 10 0" /></>;
+    case "astronaut": return <><path d="M22 68v-8q18-12 36 0v8" fill="white" /><circle cx="40" cy="35" r="25" fill="white" /><rect x="21" y="20" width="38" height="31" rx="14" fill={ink} /><path d="M28 29q4-5 11-4m9 0h2" stroke="white" fill="none" /><path d="M34 63h12M15 32v9m50-9v9" /><circle cx="53" cy="62" r="2" fill="#df9b44" stroke="none" /></>;
+    case "dinosaur": return <><path d="m25 33-7-6 12-4-1-10 12 7 9-8 4 13 11 2-6 10" fill={ink} /><path d="M20 53V35q0-14 19-14h10q15 0 15 15v13q0 14-19 14H30z" fill="white" /><circle cx="45" cy="35" r="3" fill={ink} /><path d="M52 47h11M29 55q6 4 12 0" /><circle cx="57" cy="40" r="1.5" fill={ink} /></>;
+    case "otter": return <><circle cx="20" cy="32" r="7" fill={ink} /><circle cx="60" cy="32" r="7" fill={ink} /><ellipse cx="40" cy="43" rx="24" ry="22" fill="white" />{eyes}<ellipse cx="40" cy="52" rx="14" ry="10" fill={background} /><path d="m36 47 4 4 4-4z" fill={ink} /><path d="M18 48l10 2m24 0 10-2M18 55l10-1m24 0 10 1" />{smile}</>;
+    case "tiger": return <><circle cx="23" cy="25" r="9" fill={ink} /><circle cx="57" cy="25" r="9" fill={ink} /><ellipse cx="40" cy="43" rx="24" ry="23" fill="white" />{eyes}<path d="M34 23l6 10 6-10M19 39l7 4-8 4m43-8-7 4 8 4" fill={ink} /><path d="m36 49 4 4 4-4z" fill={ink} />{smile}</>;
+  }
+  return null;
+}

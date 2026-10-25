@@ -6,7 +6,8 @@ import { useRef, useState, useSyncExternalStore, type FormEvent, type PointerEve
 import { Icon } from "../landing/landing-icon";
 import { validateAuth, type AuthErrors, type AuthMode, type AuthValues, type FieldName } from "./validation";
 import { AnimatedOwl, type AnimatedOwlHandle } from "./animated-owl";
-import { authRequest } from "./auth-client";
+import { authRequest, type AuthUser } from "./auth-client";
+import { announceAuthChange } from "./student-session";
 
 const subscribe = () => () => {};
 const getHydrated = () => true;
@@ -51,13 +52,14 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     setPending(true);
     setNotice(register ? "Creating your account…" : "Signing in…");
     try {
-      await authRequest(mode, {
+      const { user } = await authRequest<{ user: AuthUser }>(mode, {
         email: values.email.trim(), password: values.password,
         ...(register ? { name: values.name.trim() } : { remember }),
       });
       setValues({ name: "", email: "", password: "", confirmPassword: "" });
       setNotice(register ? "Account created successfully." : "Signed in successfully.");
-      router.replace("/login/success");
+      announceAuthChange();
+      router.replace(user.role === "STUDENT" ? "/dashboard" : "/login/success");
       router.refresh();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to sign in. Please try again.");

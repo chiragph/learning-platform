@@ -1,0 +1,24 @@
+@layer components {
+  .student-layout { transition:grid-template-columns 180ms ease; }
+  .student-sidebar { min-width:0; overflow-x:hidden; }
+  .student-nav-link { white-space:nowrap; }
+  .student-sidebar-toggle { display:flex; align-items:center; gap:12px; min-height:40px; padding:8px 12px; border:1px solid var(--student-line); border-radius:8px; color:var(--secondary); background:var(--surface); cursor:pointer; font-size:11px; white-space:nowrap; }
+  .student-sidebar-toggle:hover { color:var(--action); border-color:var(--action); }
+  .student-sidebar-toggle svg { flex-shrink:0; width:18px; height:18px; transform:rotate(180deg); }
+  .student-nav-tooltip { position:fixed; z-index:60; left:82px; transform:translateY(-50%); padding:8px 12px; max-width:180px; border:1px solid var(--student-line); border-radius:7px; background:var(--foreground); color:var(--background); font-size:12px; box-shadow:var(--student-shadow); pointer-events:none; }
+  @media(min-width:761px) {
+    .student-app[data-sidebar-collapsed="true"] .student-layout { grid-template-columns:76px minmax(0,1fr); }
+    .student-app[data-sidebar-collapsed="true"] .student-sidebar { padding-inline:12px; gap:24px; overflow-x:hidden; }
+    .student-app[data-sidebar-collapsed="true"] .student-sidebar-toggle { justify-content:center; padding-inline:0; }
+    .student-app[data-sidebar-collapsed="true"] .student-sidebar-toggle svg { transform:none; }
+    .student-app[data-sidebar-collapsed="true"] .student-sidebar-toggle span,
+    .student-app[data-sidebar-collapsed="true"] .student-nav-link>span:not(.student-nav-dot),
+    .student-app[data-sidebar-collapsed="true"] .student-nav-label { position:absolute; width:1px; height:1px; clip-path:inset(50%); overflow:hidden; white-space:nowrap; padding:0; margin:0; }
+    .student-app[data-sidebar-collapsed="true"] .student-nav-link { justify-content:center; position:relative; padding:12px 0; }
+    .student-app[data-sidebar-collapsed="true"] .student-nav-dot { position:absolute; right:4px; top:8px; }
+    .student-app[data-sidebar-collapsed="true"] .student-sidebar-foot { display:none; }
+    .student-app[data-sidebar-collapsed="true"] .student-main { max-width:1440px; }
+  }
+  @media(max-width:760px) { .student-sidebar-toggle,.student-nav-tooltip { display:none; } }
+  @media(prefers-reduced-motion:reduce) { .student-layout { transition:none; } }
+}

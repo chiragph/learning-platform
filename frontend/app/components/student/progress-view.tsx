@@ -1,0 +1,18 @@
+"use client";
+
+import Link from "next/link";
+import { allLessons, courses } from "@/app/lib/student/courses";
+import { challenges, challengeIds } from "@/app/lib/student/challenges";
+import { projects } from "@/app/lib/student/projects";
+import { courseProgress } from "@/app/lib/student/progress";
+import { PageHeading, CourseCard, ActivityList } from "./learning-overview";
+import { useProgress } from "./progress-provider";
+
+export function ProgressView() {
+  const { progress } = useProgress();
+  const units = courses.map((c) => courseProgress(progress, c.id, challengeIds(c.id)));
+  const completed = units.reduce((sum, p) => sum + p.completed, 0);
+  const total = units.reduce((sum, p) => sum + p.total, 0);
+  const percent = total ? Math.round(completed / total * 100) : 0;
+  return <><PageHeading title="See how far you have come." description="Every completed curriculum activity is a small step forward. Your records stay in this browser." /><section className="student-card"><div className="student-row"><h2>Overall course progress</h2><strong className="student-stat">{percent}%</strong></div><progress className="student-progress" value={percent} max={100} aria-label="Overall course completion" /><p className="student-muted">{completed} of {total} learning units completed.</p><details className="student-hint"><summary>How completion is calculated</summary><p>Each published curriculum activity has equal weight: a completed theory lesson, a quiz with a best score of at least 70%, an explicitly completed lab challenge, or a self-reviewed workshop project. Course percentage = completed units ÷ total units × 100, rounded to the nearest whole number. Overall progress uses the sum of all course units. Lab checks and workshop step reviews do not count as completion on their own; use each activity’s final completion action. Earlier demo completions are preserved. Workshop projects count in their assigned course. Upcoming activities cannot be completed. Opening an activity never grants completion.</p></details></section><section className="student-section"><h2 className="student-section-title">Course progress</h2><div className="student-grid">{courses.map((c) => <CourseCard key={c.id} course={c} />)}</div></section><section className="student-section student-grid"><div className="student-card"><span className="student-stat">{progress.lessons.length}/{allLessons.length}</span><h2>Lessons</h2><Link href="/lessons" className="student-link">Continue theory →</Link></div><div className="student-card"><span className="student-stat">{progress.challenges.length}/{challenges.length}</span><h2>Coding labs</h2><Link href="/challenges" className="student-link">Keep practicing →</Link></div><div className="student-card"><span className="student-stat">{progress.projects.length}/{projects.length}</span><h2>Guided workshops</h2><Link href="/projects" className="student-link">Build something →</Link></div></section><section className="student-section"><h2 className="student-section-title">Quiz performance</h2><div className="student-card"><ul>{courses.map((c) => { const q = progress.quizzes[c.id]; return <li key={c.id} className="student-list-item"><Link className="student-link" href={`/quizzes/${c.id}`}>{c.title}</Link><span>{q ? `${q.best >= 70 ? "Passed · Completed" : "Attempted · Not passed"} · Latest ${q.latest}% · Best ${q.best}% · ${q.attempts} attempt${q.attempts === 1 ? "" : "s"}` : "Not attempted"}</span></li>; })}</ul></div></section><section className="student-section"><h2 className="student-section-title">Learning activity</h2><ActivityList /></section></>;
+}
