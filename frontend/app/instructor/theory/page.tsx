@@ -1,3 +1,3 @@
-import { ContentView } from "../../components/instructor/content-view";
+import { TheoryLibrary } from "../../components/instructor/theory-library";
 export const metadata = { title: "Theory Lessons" };
-export default function Page() { return <ContentView type="theory" />; }
+export default function Page() { return <TheoryLibrary />; }

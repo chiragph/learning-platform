@@ -1,4 +1,9 @@
 import type { ActivityType, ContentReference } from "../student/curriculum-types";
+import type { TheoryContent, TheoryStore } from "./theory-types";
+import type { QuizContent, QuizStore } from "./quiz-types";
+import type { LabContent, LabStore } from "./lab-types";
+
+import type { WorkshopContent, WorkshopStore } from "./workshop-types";
 
 export type PublicationStatus = "draft" | "published";
 export type Difficulty = "Beginner" | "Intermediate" | "Advanced";
@@ -22,8 +27,13 @@ export type CourseFields = {
 // The ID is the stable slug. Array position is the canonical display order.
 export type InstructorCourse = RecordState & CourseFields & { status: PublicationStatus; source: "seed" | "local"; publishedAt: string | null; modules: InstructorModule[]; duplication?: { version: 1; courseId: string } };
 export type ContentChange = { id: string; courseId: string; title: string; at: string; action?: InstructorCommand["type"]; content?: { kind: "course" | "module" | "activity"; id: string; title: string } };
-export type InstructorState = { version: 1; courses: InstructorCourse[]; changes: ContentChange[] };
+export type InstructorState = { version: 1 | 2 | 3 | 4; courses: InstructorCourse[]; changes: ContentChange[]; theory?: TheoryStore; quiz?: QuizStore; lab?: LabStore; workshop?: WorkshopStore };
 export type InstructorCommand =
+  | { type: "workshop.save"; courseId: string; moduleId: string; activityId: string; content: WorkshopContent; expectedUpdatedAt: string | null; expectedRevision: number | null }
+  | { type: "workshop.duplicate"; courseId: string; moduleId: string; activityId: string }
+  | { type: "lab.save"; courseId: string; moduleId: string; activityId: string; content: LabContent; expectedUpdatedAt: string | null; expectedRevision: number | null }
+  | { type: "quiz.save"; courseId: string; moduleId: string; activityId: string; content: QuizContent; expectedUpdatedAt: string | null; expectedRevision: number | null }
+  | { type: "theory.save"; courseId: string; moduleId: string; activityId: string; content: TheoryContent; expectedUpdatedAt: string | null; expectedRevision: number | null }
   | { type: "course.create"; id: string; fields: CourseFields }
   | { type: "course.update"; courseId: string; fields: CourseFields }
   | { type: "course.duplicate"; courseId: string }

@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useSyncExternalStore, t
 import { instructorStorageKey, LocalInstructorRepository } from "../../lib/instructor/repository";
 import type { InstructorCommand, RepositorySnapshot } from "../../lib/instructor/types";
 
-type InstructorContextValue = RepositorySnapshot & { error: string; execute: (command: InstructorCommand) => string | null };
+type InstructorContextValue = RepositorySnapshot & { error: string; execute: (command: InstructorCommand) => string | null; readSnapshot: () => RepositorySnapshot };
 const InstructorContext = createContext<InstructorContextValue | null>(null);
 export function InstructorProvider({ children }: { children: ReactNode }) {
   const [repository] = useState(() => new LocalInstructorRepository());
@@ -20,7 +20,7 @@ export function InstructorProvider({ children }: { children: ReactNode }) {
     try { const id = repository.execute(command); setMessage(""); return id; }
     catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save this change."); return null; }
   }
-  return <InstructorContext.Provider value={{ ...snapshot, error: message, execute }}>
+  return <InstructorContext.Provider value={{ ...snapshot, error: message, execute, readSnapshot: repository.getSnapshot }}>
     {snapshot.warning && <div className="ins-notice warning" role="status">{snapshot.warning}</div>}
     {message && <div className="ins-notice warning" role="alert">{message}<button type="button" onClick={() => setMessage("")}>Dismiss</button></div>}
     {!snapshot.ready && <div className="ins-empty" role="status">Opening your local content workspace…</div>}

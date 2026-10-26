@@ -1,5 +1,10 @@
 import { curriculumRepository } from "../student/curriculum-repository";
 import { isIsoTimestamp } from "./dates";
+import { initialTheoryContent, sameTheoryContent, validTheoryContent, validTheoryDraft } from "./theory";
+import { copyQuizQuestion, initialQuizContent, sameQuizContent, validQuizContent, validQuizDraft } from "./quiz";
+import { initialLabContent, labContentOnly, sameLabContent, validLabContent, validLabDraft } from "./lab";
+import { copyWorkshopContent, initialWorkshopContent, sameWorkshopContent, validWorkshopContent, validWorkshopDraft, workshopContentOnly } from "./workshop";
+import { decodeDraftStore } from "./content-storage";
 import type { CourseFields, InstructorActivity, InstructorCommand, InstructorCourse, InstructorModule, InstructorRepository, InstructorState, RepositorySnapshot } from "./types";
 
 export const instructorStorageKey = "decode-instructor-preview-v1";
@@ -28,7 +33,7 @@ export function publicationIssue(course: InstructorCourse): string | null {
   if (course.archived) return "Restore this course before publishing.";
   const modules = course.modules.filter(m => !m.archived);
   if (!modules.length || modules.some(m => !m.activities.some(a => !a.archived))) return "Add curriculum to every active module before publishing.";
-  if (modules.some(m => m.activities.some(a => !a.archived && (a.status === "draft" || !a.reference)))) return "Draft activities need detailed content editors in Stage 5B before publication.";
+  if (modules.some(m => m.activities.some(a => !a.archived && (a.status === "draft" || !a.reference)))) return "Draft activities need complete content and final publication review in Stage 5E.";
   return null;
 }
 const seededCourses = curriculumRepository.getPath().courses;
@@ -90,7 +95,126 @@ export function applyInstructorCommand(state: InstructorState, command: Instruct
   if (!isIsoTimestamp(now)) throw new Error("A valid ISO timestamp is required for content changes.");
   now = new Date(now).toISOString();
   const next = structuredClone(state), ids = new Set([...next.changes.map(c => c.id), ...next.courses.flatMap(c => [c.id, ...c.modules.flatMap(m => [m.id, ...m.activities.map(a => a.id)])])]);
+  if (next.workshop || next.version === 4) next.version = 4;
+  else if (next.lab || next.version === 3) next.version = 3;
+  else if (next.quiz) next.version = 2;
+  Object.values(next.theory?.drafts ?? {}).forEach(d => d.blocks.forEach(b => ids.add(b.id)));
+  Object.values(next.quiz?.drafts ?? {}).forEach(d => d.questions.forEach(q => { ids.add(q.id); q.options.forEach(o => ids.add(o.id)); }));
+  Object.values(next.lab?.drafts ?? {}).forEach(d => d.checks.forEach(c => ids.add(c.id)));
+  Object.values(next.workshop?.drafts ?? {}).forEach(d => [...d.steps, ...d.requirements, ...d.deliverables, ...d.resources].forEach(e => ids.add(e.id)));
   const fresh = (prefix: string) => { for (let i = 0; i < 10; i++) { const id = `${prefix}-${uuid()}`; if (!ids.has(id)) { ids.add(id); return id; } } throw new Error("Could not allocate a unique identifier. Try again."); };
+  if (command.type === "workshop.duplicate") {
+    const owner = next.courses.find(c => c.id === command.courseId), topic = owner?.modules.find(m => m.id === command.moduleId), original = topic?.activities.find(a => a.id === command.activityId && a.type === "workshop");
+    if (!owner || !topic || !original) throw new Error("Workshop activity not found.");
+    if (owner.archived || topic.archived || original.archived) throw new Error("Restore this curriculum before duplicating its workshop.");
+    const reference = original.reference ?? original.copiedFrom?.reference;
+    const imported = initialWorkshopContent(original), saved = next.workshop?.drafts[original.id];
+    const copy: InstructorActivity = { id: fresh("activity"), title: `${(saved?.title.trim() || original.title).slice(0, 193)} (copy)`, description: original.description, type: "workshop", minutes: original.minutes, archived: false, status: "draft", source: "local", hasBeenPublished: false, publishedAt: null, createdAt: now, updatedAt: now, copiedFrom: { activityId: original.id, ...(reference ? { reference: { ...reference } } : {}) } };
+    if (saved || imported.source !== "unsupported") {
+      next.workshop ??= { version: 1, drafts: {} };
+      const content = copyWorkshopContent(saved ?? imported.content, fresh); content.title = copy.title;
+      next.workshop.drafts[copy.id] = { ...content, version: 1, revision: 1, activityId: copy.id, createdAt: now, updatedAt: now };
+    }
+    topic.activities.splice(topic.activities.indexOf(original) + 1, 0, copy);
+    topic.status = "draft"; topic.updatedAt = now; owner.status = "draft"; owner.updatedAt = now; next.version = 4;
+    next.changes.unshift({ id: fresh("change"), courseId: owner.id, title: `Duplicated workshop: ${original.title}`, at: now, action: command.type, content: { kind: "activity", id: copy.id, title: copy.title } }); next.changes = next.changes.slice(0, 60);
+    return { state: next, id: copy.id };
+  }
+  if (command.type === "workshop.save") {
+    const owner = next.courses.find(c => c.id === command.courseId), topic = owner?.modules.find(m => m.id === command.moduleId);
+    const activity = topic?.activities.find(a => a.id === command.activityId && a.type === "workshop");
+    if (!owner || !topic || !activity) throw new Error("Workshop activity not found. Return to the workshop library.");
+    if (owner.archived || topic.archived || activity.archived) throw new Error("Restore this curriculum before editing its workshop.");
+    if (!validWorkshopContent(command.content)) throw new Error("The workshop format is invalid or exceeds its limits: 50 entries per section, 20 resources, 200 title characters, 100,000 per code field, or 10,000 per instruction field.");
+    const previous = next.workshop?.drafts[activity.id];
+    if ((previous?.updatedAt ?? null) !== command.expectedUpdatedAt || (previous?.revision ?? null) !== command.expectedRevision) throw new Error("This working draft changed elsewhere. Keep a copy of your edits, then reload the saved workshop before saving.");
+    const initial = initialWorkshopContent(activity);
+    if (sameWorkshopContent(previous ?? initial.content, command.content)) return { state, id: activity.id };
+    if (initial.source === "unsupported" && !previous) throw new Error("This legacy workshop cannot be imported safely. Its original association is preserved; a blank draft will not replace it.");
+    next.workshop ??= { version: 1, drafts: {} };
+    // Stage 5A/5B/5C-1 readers reject unsupported root versions without writing.
+    // They must not mistake new workshop commands/documents for a broken catalog.
+    next.version = 4;
+    next.workshop.drafts[activity.id] = { version: 1, revision: (previous?.revision ?? 0) + 1, activityId: activity.id, ...structuredClone(workshopContentOnly(command.content)), createdAt: previous?.createdAt ?? now, updatedAt: now };
+    if (activity.source === "local" && activity.status === "draft" && !activity.hasBeenPublished && !activity.publishedAt && !activity.reference) {
+      if (command.content.title.trim()) activity.title = command.content.title.trim();
+      activity.updatedAt = now; topic.updatedAt = now; owner.updatedAt = now;
+    }
+    next.changes.unshift({ id: fresh("change"), courseId: owner.id, title: `Saved workshop working draft: ${command.content.title.trim() || "Untitled workshop"}`, at: now, action: command.type, content: { kind: "activity", id: activity.id, title: command.content.title } });
+    next.changes = next.changes.slice(0, 60);
+    return { state: next, id: activity.id };
+  }
+  if (command.type === "lab.save") {
+    const owner = next.courses.find(c => c.id === command.courseId), topic = owner?.modules.find(m => m.id === command.moduleId);
+    const activity = topic?.activities.find(a => a.id === command.activityId && a.type === "lab");
+    if (!owner || !topic || !activity) throw new Error("Lab activity not found. Return to the lab library.");
+    if (owner.archived || topic.archived || activity.archived) throw new Error("Restore this curriculum before editing its lab.");
+    if (!validLabContent(command.content)) throw new Error("The lab format is invalid or exceeds its limits: 50 checks, 200 title characters, 100,000 characters per code field, or 10,000 per instruction field.");
+    const previous = next.lab?.drafts[activity.id];
+    if ((previous?.updatedAt ?? null) !== command.expectedUpdatedAt || (previous?.revision ?? null) !== command.expectedRevision) throw new Error("This working draft changed elsewhere. Keep a copy of your edits, then reload the saved lab before saving.");
+    const initial = initialLabContent(activity);
+    if (sameLabContent(previous ?? initial.content, command.content)) return { state, id: activity.id };
+    if (initial.source === "unsupported" && !previous) throw new Error("This legacy lab cannot be imported safely. Its original association is preserved; a blank draft will not replace it.");
+    next.lab ??= { version: 1, drafts: {} };
+    // Stage 5A/5B/5C-1 readers reject unsupported root versions without writing.
+    // They must not mistake new lab commands/documents for a broken catalog.
+    if (next.version < 3) next.version = 3;
+    next.lab.drafts[activity.id] = { version: 1, revision: (previous?.revision ?? 0) + 1, activityId: activity.id, ...structuredClone(labContentOnly(command.content)), createdAt: previous?.createdAt ?? now, updatedAt: now };
+    if (activity.source === "local" && activity.status === "draft" && !activity.hasBeenPublished && !activity.publishedAt && !activity.reference) {
+      if (command.content.title.trim()) activity.title = command.content.title.trim();
+      activity.updatedAt = now; topic.updatedAt = now; owner.updatedAt = now;
+    }
+    next.changes.unshift({ id: fresh("change"), courseId: owner.id, title: `Saved lab working draft: ${command.content.title.trim() || "Untitled lab"}`, at: now, action: command.type, content: { kind: "activity", id: activity.id, title: command.content.title } });
+    next.changes = next.changes.slice(0, 60);
+    return { state: next, id: activity.id };
+  }
+  if (command.type === "quiz.save") {
+    const owner = next.courses.find(c => c.id === command.courseId), topic = owner?.modules.find(m => m.id === command.moduleId);
+    const activity = topic?.activities.find(a => a.id === command.activityId && a.type === "quiz");
+    if (!owner || !topic || !activity) throw new Error("Quiz activity not found. Return to the quiz library.");
+    if (owner.archived || topic.archived || activity.archived) throw new Error("Restore this curriculum before editing its quiz.");
+    if (!validQuizContent(command.content)) throw new Error("The quiz format is invalid or exceeds its limits: 100 questions, 6 options, 200 title characters, 2,000 characters per option, or 10,000 per text field.");
+    const previous = next.quiz?.drafts[activity.id];
+    if ((previous?.updatedAt ?? null) !== command.expectedUpdatedAt || (previous?.revision ?? null) !== command.expectedRevision) throw new Error("This working draft changed elsewhere. Keep a copy of your edits, then reload the saved quiz before saving.");
+    const initial = initialQuizContent(activity);
+    if (sameQuizContent(previous ?? initial.content, command.content)) return { state, id: activity.id };
+    if (initial.source === "unsupported" && !previous) throw new Error("This legacy quiz cannot be imported safely. Its original association is preserved; a blank draft will not replace it.");
+    next.quiz ??= { version: 1, drafts: {} };
+    // Stage 5A/5B readers reject unsupported root versions without writing.
+    // They must not mistake new quiz commands/documents for a broken catalog.
+    if (next.version < 2) next.version = 2;
+    next.quiz.drafts[activity.id] = { version: 1, revision: (previous?.revision ?? 0) + 1, activityId: activity.id, title: command.content.title, instructions: command.content.instructions, questions: structuredClone(command.content.questions), createdAt: previous?.createdAt ?? now, updatedAt: now };
+    if (activity.source === "local" && activity.status === "draft" && !activity.hasBeenPublished && !activity.publishedAt && !activity.reference) {
+      if (command.content.title.trim()) activity.title = command.content.title.trim();
+      activity.updatedAt = now; topic.updatedAt = now; owner.updatedAt = now;
+    }
+    next.changes.unshift({ id: fresh("change"), courseId: owner.id, title: `Saved quiz working draft: ${command.content.title.trim() || "Untitled quiz"}`, at: now, action: command.type, content: { kind: "activity", id: activity.id, title: command.content.title } });
+    next.changes = next.changes.slice(0, 60);
+    return { state: next, id: activity.id };
+  }
+  if (command.type === "theory.save") {
+    const owner = next.courses.find(c => c.id === command.courseId), topic = owner?.modules.find(m => m.id === command.moduleId);
+    const activity = topic?.activities.find(a => a.id === command.activityId && a.type === "theory");
+    if (!owner || !topic || !activity) throw new Error("Theory activity not found. Return to the lesson library.");
+    if (owner.archived || topic.archived || activity.archived) throw new Error("Restore this curriculum before editing its lesson.");
+    if (!validTheoryContent(command.content)) throw new Error("The lesson format is invalid or exceeds the limit of 200 blocks, 200 title characters, or 100,000 characters per field.");
+    const previous = next.theory?.drafts[activity.id];
+    if ((previous?.updatedAt ?? null) !== command.expectedUpdatedAt || (previous?.revision ?? null) !== command.expectedRevision) throw new Error("This working draft changed elsewhere. Keep a copy of your edits, then reopen the lesson before saving.");
+    const initial = initialTheoryContent(activity);
+    if (sameTheoryContent(previous ?? initial.content, command.content)) return { state, id: activity.id };
+    if (initial.source === "unsupported" && !previous) throw new Error("This legacy lesson cannot be imported safely. Duplicate the activity's course and preserve its original content before preparing a replacement.");
+    next.theory ??= { version: 1, drafts: {} };
+    next.theory.drafts[activity.id] = { version: 1, revision: (previous?.revision ?? 0) + 1, activityId: activity.id, title: command.content.title, blocks: structuredClone(command.content.blocks), createdAt: previous?.createdAt ?? now, updatedAt: now };
+    // A working draft for published or historically published content is separate.
+    // Its save must never change the published activity, course, or student source.
+    if (activity.source === "local" && activity.status === "draft" && !activity.hasBeenPublished && !activity.publishedAt && !activity.reference) {
+      if (command.content.title.trim()) activity.title = command.content.title.trim();
+      activity.updatedAt = now; topic.updatedAt = now; owner.updatedAt = now;
+    }
+    next.changes.unshift({ id: fresh("change"), courseId: owner.id, title: `Saved theory working draft: ${command.content.title.trim() || "Untitled lesson"}`, at: now, action: command.type, content: { kind: "activity", id: activity.id, title: command.content.title } });
+    next.changes = next.changes.slice(0, 60);
+    return { state: next, id: activity.id };
+  }
   let course: InstructorCourse, id: string, title: string, affectedTitle: string | undefined;
   if (command.type === "course.create") {
     id = required(command.id, "Course identifier", 80);
@@ -130,6 +254,17 @@ export function applyInstructorCommand(state: InstructorState, command: Instruct
             }),
           })),
         };
+        for (const [mi, m] of course.modules.entries()) for (const [ai, a] of m.activities.entries()) {
+          const draft = next.theory?.drafts[a.id];
+          const target = copy.modules[mi].activities[ai];
+          if (draft) next.theory!.drafts[target.id] = { ...structuredClone(draft), revision: 1, activityId: target.id, createdAt: now, updatedAt: now, blocks: draft.blocks.map(b => ({ ...structuredClone(b), id: fresh("block") })) };
+          const workshopDraft = next.workshop?.drafts[a.id];
+          if (workshopDraft) next.workshop!.drafts[target.id] = { ...copyWorkshopContent(workshopDraft, fresh), version: 1, revision: 1, activityId: target.id, createdAt: now, updatedAt: now };
+          const labDraft = next.lab?.drafts[a.id];
+          if (labDraft) next.lab!.drafts[target.id] = { ...structuredClone(labDraft), revision: 1, activityId: target.id, createdAt: now, updatedAt: now, checks: labDraft.checks.map(c => ({ ...structuredClone(c), id: fresh("check") })) };
+          const quizDraft = next.quiz?.drafts[a.id];
+          if (quizDraft) next.quiz!.drafts[target.id] = { ...structuredClone(quizDraft), revision: 1, activityId: target.id, createdAt: now, updatedAt: now, questions: quizDraft.questions.map(q => copyQuizQuestion(q, fresh)) };
+        }
         next.courses.push(copy); course = copy; id = copy.id; title = `Duplicated ${found.title}`; break;
       }
       case "course.status": {
@@ -176,7 +311,25 @@ export function applyInstructorCommand(state: InstructorState, command: Instruct
           const activity = topic.activities.find(a => a.id === command.activityId); if (!activity) throw new Error("Activity not found.");
           id = activity.id;
           if (activity.archived && command.type !== "activity.archive" && command.type !== "activity.delete") throw new Error("Restore this activity before editing it.");
-          if (command.type === "activity.update") { activity.title = required(command.title, "Activity title"); activity.description = required(command.description, "Description", 2000); title = `Updated activity: ${activity.title}`; }
+          if (command.type === "activity.update") {
+            activity.title = required(command.title, "Activity title"); activity.description = required(command.description, "Description", 2000); title = `Updated activity: ${activity.title}`;
+            const working = next.theory?.drafts[activity.id];
+            if (working && activity.source === "local" && activity.status === "draft" && !activity.hasBeenPublished && !activity.publishedAt && !activity.reference && working.title !== activity.title) {
+              working.title = activity.title; working.updatedAt = now; working.revision++;
+            }
+            const workshopDraft = next.workshop?.drafts[activity.id];
+            if (workshopDraft && activity.source === "local" && activity.status === "draft" && !activity.hasBeenPublished && !activity.publishedAt && !activity.reference && workshopDraft.title !== activity.title) {
+              workshopDraft.title = activity.title; workshopDraft.updatedAt = now; workshopDraft.revision++;
+            }
+            const labDraft = next.lab?.drafts[activity.id];
+            if (labDraft && activity.source === "local" && activity.status === "draft" && !activity.hasBeenPublished && !activity.publishedAt && !activity.reference && labDraft.title !== activity.title) {
+              labDraft.title = activity.title; labDraft.updatedAt = now; labDraft.revision++;
+            }
+            const quizDraft = next.quiz?.drafts[activity.id];
+            if (quizDraft && activity.source === "local" && activity.status === "draft" && !activity.hasBeenPublished && !activity.publishedAt && !activity.reference && quizDraft.title !== activity.title) {
+              quizDraft.title = activity.title; quizDraft.updatedAt = now; quizDraft.revision++;
+            }
+          }
           else if (command.type === "activity.archive") { activity.archived = command.archived; title = `${command.archived ? "Archived" : "Restored"} activity: ${activity.title}`; }
           else if (command.type === "activity.reorder") { reorder(topic.activities, activity.id, command.direction, now); title = `Reordered activity: ${activity.title}`; }
           else if (command.type === "activity.delete") {
@@ -199,6 +352,22 @@ export function applyInstructorCommand(state: InstructorState, command: Instruct
     }
     course.updatedAt = now;
   }
+  if (next.theory) {
+    const activities = new Set(next.courses.flatMap(c => c.modules.flatMap(m => m.activities.filter(a => a.type === "theory").map(a => a.id))));
+    next.theory.drafts = Object.fromEntries(Object.entries(next.theory.drafts).filter(([id]) => activities.has(id)));
+  }
+  if (next.quiz) {
+    const quizzes = new Set(next.courses.flatMap(c => c.modules.flatMap(m => m.activities.filter(a => a.type === "quiz").map(a => a.id))));
+    next.quiz.drafts = Object.fromEntries(Object.entries(next.quiz.drafts).filter(([id]) => quizzes.has(id)));
+  }
+  if (next.lab) {
+    const labs = new Set(next.courses.flatMap(c => c.modules.flatMap(m => m.activities.filter(a => a.type === "lab").map(a => a.id))));
+    next.lab.drafts = Object.fromEntries(Object.entries(next.lab.drafts).filter(([id]) => labs.has(id)));
+  }
+  if (next.workshop) {
+    const workshops = new Set(next.courses.flatMap(c => c.modules.flatMap(m => m.activities.filter(a => a.type === "workshop").map(a => a.id))));
+    next.workshop.drafts = Object.fromEntries(Object.entries(next.workshop.drafts).filter(([id]) => workshops.has(id)));
+  }
   const kind = command.type.startsWith("activity.") ? "activity" : command.type.startsWith("module.") ? "module" : "course";
   next.changes.unshift({ id: fresh("change"), courseId: course.id, title, at: now, action: command.type, content: { kind, id, title: affectedTitle ?? course.title } }); next.changes = next.changes.slice(0, 60);
   return { state: next, id };
@@ -208,7 +377,7 @@ type StoragePort = Pick<Storage, "getItem" | "setItem">;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const text = (value: unknown): value is string => typeof value === "string";
 function validState(value: unknown): value is InstructorState {
-  if (!object(value) || value.version !== 1 || !Array.isArray(value.courses) || !Array.isArray(value.changes)) return false;
+  if (!object(value) || ![1, 2, 3, 4].includes(Number(value.version)) || typeof value.version !== "number" || !Array.isArray(value.courses) || !Array.isArray(value.changes)) return false;
   const ids = new Set<string>();
   const timestamp = (v: unknown) => v === undefined || v === null || isIsoTimestamp(v);
   const record = (v: unknown) => { if (!object(v) || !text(v.id) || !v.id || ids.has(v.id) || typeof v.archived !== "boolean" || !(v.hasBeenPublished === undefined || typeof v.hasBeenPublished === "boolean") || !timestamp(v.createdAt) || !timestamp(v.updatedAt)) return false; ids.add(v.id); return true; };
@@ -237,7 +406,7 @@ function validState(value: unknown): value is InstructorState {
       }
     }
   }
-  const actions: InstructorCommand["type"][] = ["course.create", "course.update", "course.duplicate", "course.status", "course.archive", "course.delete", "module.create", "module.update", "module.reorder", "module.archive", "module.delete", "activity.create", "activity.update", "activity.reorder", "activity.move", "activity.archive", "activity.delete"];
+  const actions: InstructorCommand["type"][] = ["workshop.save", "workshop.duplicate", "lab.save", "quiz.save", "theory.save", "course.create", "course.update", "course.duplicate", "course.status", "course.archive", "course.delete", "module.create", "module.update", "module.reorder", "module.archive", "module.delete", "activity.create", "activity.update", "activity.reorder", "activity.move", "activity.archive", "activity.delete"];
   return value.changes.every(v => object(v) && text(v.id) && text(v.title) && text(v.courseId) && isIsoTimestamp(v.at) && (v.action === undefined || actions.includes(v.action as InstructorCommand["type"])) && (v.content === undefined || object(v.content) && ["course", "module", "activity"].includes(String(v.content.kind)) && text(v.content.id) && text(v.content.title)));
 }
 // Additive version-1 migration: unknown history becomes null, never "now".
@@ -246,12 +415,26 @@ function normalizeTimestamps(state: InstructorState): InstructorState {
   const iso = (v?: string | null) => v ? new Date(v).toISOString() : null;
   return { ...state, courses: state.courses.map(c => ({ ...c, createdAt: iso(c.createdAt), updatedAt: iso(c.updatedAt), publishedAt: iso(c.publishedAt), modules: c.modules.map(m => ({ ...m, createdAt: iso(m.createdAt), updatedAt: iso(m.updatedAt), activities: m.activities.map(a => ({ ...a, createdAt: iso(a.createdAt), updatedAt: iso(a.updatedAt), publishedAt: iso(a.publishedAt) })) })) })), changes: state.changes.map(change => ({ ...change, at: new Date(change.at).toISOString() })) };
 }
-export function decodeInstructorStorage(raw: string | null): { state: InstructorState; recovery: "none" | "malformed" | "unsupported" } {
+export function decodeInstructorStorage(raw: string | null): { state: InstructorState; recovery: "none" | "malformed" | "unsupported" | "theory" | "quiz" | "lab" | "workshop" | "content" } {
   if (raw === null) return { state: seedInstructorState(), recovery: "none" };
   try {
     const value: unknown = JSON.parse(raw);
-    if (object(value) && typeof value.version === "number" && value.version !== 1) return { state: seedInstructorState(), recovery: "unsupported" };
-    if (validState(value)) return { state: normalizeTimestamps(value), recovery: "none" };
+    if (object(value) && typeof value.version === "number" && ![1, 2, 3, 4].includes(value.version)) return { state: seedInstructorState(), recovery: "unsupported" };
+    if (validState(value)) {
+      const state = normalizeTimestamps(value), activities = state.courses.flatMap(c => c.modules.flatMap(m => m.activities));
+      const theory = decodeDraftStore(value.theory, new Set(activities.filter(a => a.type === "theory").map(a => a.id)), validTheoryDraft);
+      const quiz = decodeDraftStore(value.quiz, new Set(activities.filter(a => a.type === "quiz").map(a => a.id)), validQuizDraft);
+      const lab = decodeDraftStore(value.lab, new Set(activities.filter(a => a.type === "lab").map(a => a.id)), validLabDraft);
+      const workshop = decodeDraftStore(value.workshop, new Set(activities.filter(a => a.type === "workshop").map(a => a.id)), validWorkshopDraft);
+      delete state.theory; delete state.quiz; delete state.lab; delete state.workshop;
+      if (theory.store) state.theory = theory.store;
+      if (quiz.store) state.quiz = quiz.store;
+      if (lab.store) state.lab = lab.store;
+      if (workshop.store) state.workshop = workshop.store;
+      if ([theory, quiz, lab, workshop].some(store => store.recovery === "unsupported")) return { state, recovery: "unsupported" };
+      const invalid = ([ ["theory", theory], ["quiz", quiz], ["lab", lab], ["workshop", workshop] ] as const).filter(([,store]) => store.recovery === "malformed").map(([name]) => name);
+      return { state, recovery: invalid.length > 1 ? "content" : invalid[0] ?? "none" };
+    }
   } catch { /* Preserve the raw record before allowing a recovered write. */ }
   return { state: seedInstructorState(), recovery: "malformed" };
 }
@@ -266,18 +449,22 @@ export class LocalInstructorRepository implements InstructorRepository {
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private notify() { this.listeners.forEach(listener => listener()); }
   initialize = () => {
+    let recoveredState = this.snapshot.state;
     try {
       this.raw = this.storage().getItem(instructorStorageKey);
       const { state, recovery } = decodeInstructorStorage(this.raw);
-      if (recovery === "malformed") this.storage().setItem(instructorRecoveryKey, this.raw!);
-      this.snapshot = { state, ready: true, writable: recovery !== "unsupported", warning: recovery === "unsupported" ? "This browser has an unsupported repository version. Editing is disabled to preserve it. Use a compatible app version or a separate browser profile." : recovery === "malformed" ? "Invalid local content was recovered from the original curriculum. The previous record is backed up in this browser." : "" };
-    } catch { this.snapshot = { ...this.snapshot, ready: true, writable: false, warning: "Browser storage is unavailable. Content is read-only; enable local storage to save changes." }; }
+      recoveredState = state;
+      if (["malformed", "theory", "quiz", "lab", "workshop", "content"].includes(recovery)) this.storage().setItem(instructorRecoveryKey, this.raw!);
+      this.snapshot = { state, ready: true, writable: recovery !== "unsupported", warning: recovery === "unsupported" ? "This browser has an unsupported repository or content version. Editing is disabled to preserve it. Use a compatible app version or a separate browser profile." : ["theory", "quiz", "lab", "workshop", "content"].includes(recovery) ? "Invalid local content drafts were isolated. Your catalog and valid drafts are preserved; the previous record is backed up in this browser." : recovery === "malformed" ? "Invalid local content was recovered from the original curriculum. The previous record is backed up in this browser." : "" };
+    } catch { this.snapshot = { ...this.snapshot, state: recoveredState, ready: true, writable: false, warning: "Browser storage is unavailable. Content is read-only; enable local storage to save changes." }; }
     this.notify();
   };
   execute = (command: InstructorCommand) => {
     if (!this.snapshot.ready || !this.snapshot.writable) throw new Error("Local storage is not ready for editing.");
     if (this.storage().getItem(instructorStorageKey) !== this.raw) { this.initialize(); throw new Error("Content changed in another tab. Review the refreshed content and retry."); }
-    const result = applyInstructorCommand(this.snapshot.state, command), raw = JSON.stringify(result.state);
+    const result = applyInstructorCommand(this.snapshot.state, command);
+    if (result.state === this.snapshot.state) return result.id;
+    const raw = JSON.stringify(result.state);
     try { this.storage().setItem(instructorStorageKey, raw); } catch { throw new Error("Changes were not saved. Browser storage may be full or disabled."); }
     this.raw = raw; this.snapshot = { ...this.snapshot, state: result.state }; this.notify(); return result.id;
   };

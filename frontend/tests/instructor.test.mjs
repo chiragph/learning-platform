@@ -72,7 +72,7 @@ test("course editing preserves IDs and publication checks never publish unfinish
   app.run({ type: "course.status", courseId: "html", status: "draft" }); assert.equal(app.state.courses[0].status, "draft");
   app.run({ type: "course.create", id: "empty", fields: data }); assert.throws(() => app.run({ type: "course.status", courseId: "empty", status: "published" }), /curriculum/);
   app.run({ type: "activity.create", courseId: "html", moduleId: "html-first-page", activityType: "lab", title: "New lab", description: "Practice" });
-  assert.throws(() => app.run({ type: "course.status", courseId: "html", status: "published" }), /Stage 5B/);
+  assert.throws(() => app.run({ type: "course.status", courseId: "html", status: "published" }), /Stage 5E/);
 });
 
 test("duplication allocates new IDs and archive/restore keeps the original curriculum intact", () => {
@@ -130,7 +130,7 @@ test("malformed/truncated storage is backed up, future versions stay read-only",
     assert.equal(store.getSnapshot().state.courses.length,3); assert.equal(store.getSnapshot().writable,true); assert.match(store.getSnapshot().warning,/recovered/); assert.equal(memory.getItem(repo.instructorRecoveryKey),raw);
     assert.equal(memory.getItem(repo.instructorStorageKey),raw);
   }
-  const memory = storage(), future = '{"version":2,"courses":[]}'; memory.setItem(repo.instructorStorageKey,future);
+  const memory = storage(), future = '{"version":5,"courses":[]}'; memory.setItem(repo.instructorStorageKey,future);
   const store = new repo.LocalInstructorRepository(() => memory); store.initialize(); assert.equal(store.getSnapshot().writable,false);
   assert.throws(() => store.execute({ type:"course.create",id:"blocked",fields:data }),/not ready/); assert.equal(memory.getItem(repo.instructorStorageKey),future);
 });
@@ -406,7 +406,7 @@ test("published course duplication resets the entire hierarchy and preserves cop
     });
     assert.equal(app.repo.moduleDeletionIssue(copy,topic),null);
   });
-  assert.throws(() => app.run({ type:"course.status",courseId:id,status:"published" },clock[3]),/Stage 5B/);
+  assert.throws(() => app.run({ type:"course.status",courseId:id,status:"published" },clock[3]),/Stage 5E/);
   app.run({ type:"course.delete",courseId:id },clock[4]); assert.equal(app.state.courses.length,3); assert.equal(JSON.stringify(app.state.courses),before);
 });
 

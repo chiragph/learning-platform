@@ -15,7 +15,7 @@ window.HTMLDialogElement.prototype.showModal = function () { this.open = true; }
 window.HTMLDialogElement.prototype.close = function () { this.open = false; };
 window.matchMedia = () => ({ matches:false });
 const { createRoot } = await import("react-dom/client"), dependency = createRequire(import.meta.url);
-function application() {
+function application({ pathname = () => window.location.pathname } = {}) {
   const cache = new Map();
   function load(file) {
     file = path.resolve(file); if (cache.has(file)) return cache.get(file).exports;
@@ -24,7 +24,7 @@ function application() {
     function require(specifier) {
       if (specifier.endsWith(".css")) return {};
       if (specifier === "next/link") return { __esModule:true, default:({ href,children,...props }) => React.createElement("a",{ href,...props },children) };
-      if (specifier === "next/navigation") return { usePathname:() => window.location.pathname, useSearchParams:() => new URLSearchParams(window.location.search) };
+      if (specifier === "next/navigation") return { usePathname:pathname, useSearchParams:() => new URLSearchParams(window.location.search), useRouter:() => ({ push() {} }) };
       if (!specifier.startsWith(".") && !specifier.startsWith("@/")) return dependency(specifier);
       const base = specifier.startsWith("@/") ? path.resolve(specifier.slice(2)) : path.resolve(path.dirname(file),specifier);
       return load([base + ".ts",base + ".tsx"].find(fs.existsSync));
@@ -109,7 +109,7 @@ test("curriculum UI adds a module and typed activity, reorders, archives and res
     await click(button(page.node,"Add Curriculum Item")); await value(page.node.querySelector('[name="type"]'),"workshop");
     const moduleSelect = page.node.querySelector('[name="module"]'); await value(moduleSelect,moduleSelect.options[3].value);
     await value(page.node.querySelector('[name="title"]'),"Build an accessible page"); await value(page.node.querySelector('[name="description"]'),"Guided practice"); await submit(page.node);
-    assert.equal(page.node.querySelectorAll(".ins-activity").length,13); assert.match(page.node.textContent,/Content editor in Stage 5B/);
+    assert.equal(page.node.querySelectorAll(".ins-activity").length,13); assert.match(page.node.textContent,/Open Workshop Builder/);
     const menu = await details(page.node,"Actions for module Practice concepts"); await click(button(menu,"Move module up")); assert.match(page.node.querySelectorAll(".ins-module")[2].textContent,/Practice concepts/);
     const itemMenu = await details(page.node,"Actions for activity Build an accessible page"); await click(button(itemMenu,"Archive activity")); await click(button(page.node.querySelector("dialog"),"Archive")); assert.equal(page.node.querySelectorAll(".ins-activity").length,12);
     await click(page.node.querySelector('[type="checkbox"]')); const restoredMenu = await details(page.node,"Actions for activity Build an accessible page"); await click(button(restoredMenu,"Restore activity"));
@@ -135,11 +135,46 @@ test("workspace navigation, mobile drawer, collapse, Escape and dialog focus res
   try {
     const Shell = app.load("app/components/instructor/instructor-shell.tsx").InstructorShell;
     await act(async () => root.render(React.createElement(StrictMode,null,React.createElement(Shell,null,React.createElement("p",null,"Workspace content")))));
-    assert.equal(node.querySelectorAll('.ins-sidebar nav a').length,9); assert.equal(node.querySelector('a[aria-current="page"]').textContent,"Overview");
+    assert.equal(node.querySelectorAll('.ins-sidebar nav a').length,10); assert.equal(node.querySelector('a[aria-current="page"]').textContent,"Overview");
     await click(node.querySelector('[aria-label="Collapse sidebar"]')); assert.ok(node.querySelector(".is-collapsed"));
     const trigger = node.querySelector('[aria-label="Open navigation"]'); trigger.focus(); await click(trigger); assert.ok(node.querySelector("dialog[open]"));
     await act(async () => node.querySelector("dialog").dispatchEvent(new window.Event("cancel",{ cancelable:true }))); assert.equal(node.querySelector("dialog"),null); assert.equal(document.activeElement,trigger);
     const menu = await details(node,"Instructor preview profile"); await act(async () => document.dispatchEvent(new window.KeyboardEvent("keydown",{ key:"Escape",bubbles:true }))); assert.equal(menu.open,false);
+  } finally { await act(async () => root.unmount()); node.remove(); }
+});
+
+test("unknown dynamic pathname suspends only navigation and breadcrumb, preserving the shell and child route", () => {
+  const pending = new Promise(() => {}), app = application({ pathname: () => { throw pending; } });
+  const Shell = app.load("app/components/instructor/instructor-shell.tsx").InstructorShell;
+  const markup = JSDOM.fragment(renderToStaticMarkup(React.createElement(Shell, null, React.createElement("p", null, "Editor route still renders"))));
+  assert.equal(markup.querySelectorAll('.ins-sidebar nav a').length, 10);
+  assert.equal(markup.querySelectorAll('.ins-sidebar nav a[aria-current]').length, 0);
+  assert.ok(markup.querySelector('.ins-brand .decode-wordmark'));
+  assert.ok(markup.querySelector('[aria-label="Open navigation"]'));
+  assert.ok(markup.querySelector('.decode-theme-toggle'));
+  assert.match(markup.querySelector('#instructor-main').textContent, /Editor route still renders/);
+  assert.equal(markup.querySelector('.ins-breadcrumb span').textContent, "Workspace");
+});
+
+test("pathname suspension and resolution preserve shell state, route state and nested Theory navigation", async () => {
+  window.localStorage.clear();
+  let suspended = false, pathname = "/instructor/theory", resume;
+  const pending = new Promise(resolve => { resume = resolve; });
+  const app = application({ pathname: () => { if (suspended) throw pending; return pathname; } });
+  const Shell = app.load("app/components/instructor/instructor-shell.tsx").InstructorShell;
+  function Child() { const [text, setText] = React.useState("Draft text"); return React.createElement("input", { "aria-label":"Retained draft", value:text, onChange:e => setText(e.target.value) }); }
+  const node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
+  const tree = () => React.createElement(Shell, null, React.createElement(Child));
+  try {
+    await act(async () => root.render(tree())); await click(node.querySelector('[aria-label="Collapse sidebar"]'));
+    const field = node.querySelector('[aria-label="Retained draft"]'); await value(field, "Unsaved editor text");
+    suspended = true; await act(async () => root.render(tree()));
+    assert.ok(node.querySelector('.is-collapsed')); assert.equal(node.querySelector('[aria-label="Retained draft"]'), field); assert.equal(field.value, "Unsaved editor text");
+    pathname = "/instructor/theory/lesson%3Ahtml-introduction"; suspended = false;
+    await act(async () => { resume(); root.render(tree()); });
+    assert.equal(node.querySelector('.ins-sidebar nav a[aria-current="page"]').textContent, "Theory Lessons");
+    assert.equal(node.querySelector('.ins-breadcrumb span').textContent, "Theory Lesson Editor");
+    assert.ok(node.querySelector('.is-collapsed')); assert.equal(field.value, "Unsaved editor text");
   } finally { await act(async () => root.unmount()); node.remove(); }
 });
 

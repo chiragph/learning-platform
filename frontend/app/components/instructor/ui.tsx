@@ -6,6 +6,12 @@ import { formatInstructorTimestamp } from "../../lib/instructor/dates";
 import type { ContentTimestamps, CourseFields, PublicationStatus } from "../../lib/instructor/types";
 export { StudentIcon as Icon } from "../student/student-icon";
 
+// A queued reorder/add focus request must not steal focus from a dialog that
+// opened before the next animation frame. Native modality stays in control.
+export function focusEditorElement(id: string) {
+  requestAnimationFrame(() => { if (!document.querySelector("dialog[open]")) document.getElementById(id)?.focus(); });
+}
+
 export function Modal({ title, children, onClose, drawer = false, descriptionId }: { title: string; children: ReactNode; onClose: () => void; drawer?: boolean; descriptionId?: string }) {
   const ref = useRef<HTMLDialogElement>(null), titleId = useId();
   useEffect(() => {
