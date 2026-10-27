@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useSyncExternalStore, type FormEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type PointerEvent } from "react";
 import { Icon } from "../landing/landing-icon";
 import { validateAuth, type AuthErrors, type AuthMode, type AuthValues, type FieldName } from "./validation";
 import { AnimatedOwl, type AnimatedOwlHandle } from "./animated-owl";
@@ -28,6 +28,17 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   const [pending, setPending] = useState(false);
   const submitting = useRef(false);
   const [remember, setRemember] = useState(false);
+  const [destination, setDestination] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!destination) return;
+    // Cookie mutations happen behind the API rewrite. If an older prefetched
+    // route cancels navigation, leave the sign-in page via a fresh document.
+    const timeout = window.setTimeout(() => {
+      if (window.location.pathname === "/login" || window.location.pathname === "/register") window.location.replace(destination);
+    }, 1_500);
+    return () => window.clearTimeout(timeout);
+  }, [destination]);
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
     if (event.pointerType !== "touch") owl.current?.followPointer(event.clientX, event.clientY);
@@ -60,6 +71,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       setValues({ name: "", email: "", password: "", confirmPassword: "" });
       setNotice(register ? "Account created successfully." : "Signed in successfully.");
       announceAuthChange();
+      setDestination(accountHome(user));
       router.replace(accountHome(user));
       router.refresh();
     } catch (error) {

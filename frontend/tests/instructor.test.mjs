@@ -154,7 +154,7 @@ test("instructor access requires the designated authenticated identity in every 
     assert.equal(accountHome(instructor),"/instructor");
     for (const account of [null, { ...instructor,role:"STUDENT" }, { ...instructor,email:"other@example.test" }, { ...instructor,role:"ADMIN" }]) {
       assert.equal(instructorAccessAllowed(account),false);
-      if (account) assert.equal(accountHome(account),"/dashboard");
+      if (account) assert.equal(accountHome(account),account.role === "ADMIN" ? "/admin" : "/dashboard");
     }
   }
 });

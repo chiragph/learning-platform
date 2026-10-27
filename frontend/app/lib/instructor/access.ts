@@ -6,5 +6,6 @@ export function instructorAccessAllowed(user: Pick<AuthUser, "email" | "role"> |
 }
 
 export function accountHome(user: Pick<AuthUser, "email" | "role">) {
+  if (user.role === "ADMIN") return "/admin";
   return instructorAccessAllowed(user) ? "/instructor" : "/dashboard";
 }

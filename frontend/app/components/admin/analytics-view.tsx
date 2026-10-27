@@ -1,0 +1,21 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { adminApi } from "../../lib/admin/api";
+import type { ReportQuery } from "../../lib/admin/types";
+import { Distribution, TrendChart } from "./charts";
+import { ReportFilters } from "./report-filters";
+import { useAdminResource } from "./use-admin-resource";
+import { DateText, Heading, Info, Loading, Panel, ResourceView, Stat } from "./ui";
+
+export function AnalyticsView() {
+  const [query, setQuery] = useState<ReportQuery>({ period: "30d" });
+  const resource = useAdminResource(useCallback((s: AbortSignal) => adminApi.analytics(query, s), [query]));
+  const options = useAdminResource(adminApi.filterOptions);
+  const data = resource.status === "ready" ? resource.data : null, loading = resource.status === "loading";
+  return <><Heading title="Analytics" description="Understand participation, learning outcomes, and workshop reviews." /><ReportFilters value={query} onChange={setQuery} options={options} />{options.status === "error" && <button className="adm-text-button" onClick={options.retry}>Retry filter options</button>}<Info>User totals and registrations are platform-wide. Course and instructor filters apply to learning and workshop metrics. Missing measurements appear as unavailable; rates are calculated by the server.</Info><ResourceView resource={resource}>{report => <p className="adm-updated">Report generated <DateText value={report.generatedAt} time /></p>}</ResourceView>
+    <div className="adm-section-label"><h2>User analytics</h2><span>Platform-wide accounts and activity</span></div><div className="adm-grid-two"><Panel title="Users by role" subtitle="Current account distribution">{loading ? <Loading rows={3} /> : <Distribution data={data?.users.byRole?.map(item => ({ label: item.role[0] + item.role.slice(1).toLowerCase(), count: item.count })) ?? null} />}</Panel><Panel title="Registration trends" subtitle="New accounts in the selected period">{loading ? <Loading rows={3} /> : <TrendChart label="User registrations" data={data?.users.registrations ?? null} />}</Panel></div><div className="adm-stats adm-stats-three"><Stat label="Active Users" value={data?.users.active} description="With recorded activity in this period" icon="profile" loading={loading} /><Stat label="Course Participation" value={data?.learning.participants} description="Distinct participating learners" icon="courses" loading={loading} /><Stat label="Course Completion Rate" value={data?.learning.courseCompletionRate} percent description="Completed eligible participations" icon="check" loading={loading} /></div>
+    <div className="adm-section-label"><h2>Learning analytics</h2><span>Learning outcomes for the selected filters</span></div><div className="adm-stats adm-stats-three"><Stat label="Lessons Completed" value={data?.learning.lessonsCompleted} description="Recorded theory completions" icon="lesson" loading={loading} /><Stat label="Average Quiz Score" value={data?.learning.averageQuizScore} percent description="Scored quiz attempts in this period" icon="quiz" loading={loading} /><Stat label="Coding Labs Completed" value={data?.learning.labsCompleted} description="Recorded coding lab completions" icon="code" loading={loading} /></div><Panel title="Learning activity trends" subtitle="Recorded events matching the selected filters">{loading ? <Loading rows={3} /> : <TrendChart data={data?.learning.activity ?? null} label="Filtered learning activity" />}</Panel>
+    <div className="adm-section-label"><h2>Workshop analytics</h2><span>Submission records matching the selected filters</span></div><div className="adm-stats adm-stats-four"><Stat label="Total Submissions" value={data?.workshops.total} description="Workshop submission records" icon="project" loading={loading} /><Stat label="Pending Reviews" value={data?.workshops.pending} description="Awaiting instructor review" icon="clock" loading={loading} /><Stat label="Approved" value={data?.workshops.approved} description="Approved workshop submissions" icon="check" loading={loading} /><Stat label="Changes Requested" value={data?.workshops.changesRequested} description="Submissions needing another pass" icon="lesson" loading={loading} /></div>
+  </>;
+}
