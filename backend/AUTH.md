@@ -1,9 +1,11 @@
 # Local login and registration
 
-Authentication is implemented on `feature/database-schema`. The existing login
+Authentication and connected learning are present in the reviewed main source.
+See the [current backend guide](../docs/BACKEND-GUIDE.md) and [project status](../docs/PROJECT-STATUS.md) (reviewed 2026-10-27). The existing login
 and registration layouts, styles, and owl animation are preserved. Successful
 registration or login opens `/dashboard` for students. The single provisioned
-instructor, `decode.instructor@gmail.com`, opens `/instructor`. The legacy
+instructor (the reserved identity in `src/auth/account-access.ts`) opens
+`/instructor`. The legacy
 `/login/success` URL forwards to the appropriate dashboard after verifying the
 session. An unauthenticated visitor is redirected to `/login`.
 
@@ -54,9 +56,12 @@ Server and browser session guards protect instructor routes, including productio
 and cached navigation. Only the designated email with stored `INSTRUCTOR` role
 is exposed as an instructor by login and `/auth/me`; other existing role values
 are treated as `STUDENT` for this product's dashboard access. An email match alone
-never bypasses password/session verification. Instructor layouts, CSS, editor UI,
-and local content storage remain intact. Course persistence/publication/submission
-integration remains the separate Stage 5E proposal in `docs/stage-5e/`.
+never bypasses password/session verification. Instructor layouts, CSS and editor
+UI remain intact. Drafts, course publications,
+student progress, quiz grading and workshop source submissions/reviews are now
+account-backed. See the [architecture](../docs/PROJECT-ARCHITECTURE.md).
+`docs/stage-5e/` is a historical unselected schema proposal; do not apply it as
+the active schema. Remaining shell preview/local-storage copy is obsolete.
 
 The frontend proxies `/api/*` to `http://localhost:4000`. To change this, copy
 `frontend/.env.example` to `.env.local`, set `API_URL` without a trailing slash,
@@ -80,8 +85,8 @@ when the PostgreSQL server uses another timezone.
 | -------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `POST /api/auth/register`  | JSON `{ name, email, password }`; creates a student and session; returns `201` and public user data.     |
 | `POST /api/auth/login`     | JSON `{ email, password, remember? }`; verifies the stored password; returns `200` and public user data. |
-| `GET /api/auth/me`         | Returns the current public user, or `401` for missing, expired, or revoked sessions.                     |
-| `POST /api/auth/logout`    | JSON `{}`; deletes the current session and clears its cookie.                                            |
+| `GET /api/auth/me`         | Optional `scope=student` or `scope=instructor`; returns the public user, or `401` for missing, expired, or revoked sessions.                     |
+| `POST /api/auth/logout`    | JSON `{}`; optional role scope; deletes that session and clears its matching cookies.                                            |
 | `GET /api/health`          | Checks API availability.                                                                                 |
 | `GET /api/health/database` | Checks access to the migrated users table.                                                               |
 
@@ -91,7 +96,12 @@ cannot register as an admin. Wrong passwords and unknown accounts return the
 same error. Duplicate emails return `409`; database failures return a generic
 `503` without leaking connection details.
 
-Random 256-bit session tokens use an `HttpOnly`, `SameSite=Lax` cookie. Only a
+Random 256-bit session tokens use `HttpOnly`, `SameSite=Lax` cookies. Login sets
+`decode_student_session` or `decode_instructor_session` for the verified role
+plus the compatibility alias `decode_session`. Workspace verification/logout
+selects `scope=student` or `scope=instructor`; signing out one role leaves the
+other independent session intact. A present invalid role cookie never falls
+back to the alias. `scope=admin` is unsupported by the current backend. Only a
 SHA-256 hash of the token is stored in PostgreSQL. Normal sign-ins have a browser
 session cookie and a 12-hour server expiry. **Remember me** sets a persistent
 cookie and a 30-day server expiry. Tokens are never stored in localStorage or

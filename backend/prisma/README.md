@@ -1,5 +1,7 @@
 # Local PostgreSQL and Prisma setup
 
+Current schema/API reference: [backend guide](../../docs/BACKEND-GUIDE.md#prisma-models-and-relationships), reviewed 2026-10-27. The active schema contains User/Session plus six learning models; use the three committed migrations, not the historical Stage 5E candidate.
+
 Prisma is configured in `backend/`. The `User` model maps to the PostgreSQL
 `users` table and has a UUID ID, name, unique email, password hash, role, and
 creation/update timestamps. Roles are `ADMIN`, `INSTRUCTOR`, and `STUDENT`;
@@ -8,8 +10,8 @@ storing them and enforce role permissions separately.
 
 ## Create the local database in pgAdmin4
 
-Do this after the Prisma setup is in place on `feature/database-schema`.
-The migration is already prepared; this is the remaining local setup step.
+Use a developer-owned local database. The committed migrations are already
+prepared; their presence does not establish that they were applied locally.
 
 1. Start your local PostgreSQL server and open pgAdmin4.
 2. Connect to your local server (usually `localhost`, port `5432`, user `postgres`).
@@ -21,23 +23,17 @@ If PostgreSQL is not installed, install the Windows server first using the
 [official PostgreSQL download page](https://www.postgresql.org/download/windows/).
 pgAdmin4 is a management application and needs a running PostgreSQL server.
 
-## Configure credentials and apply the first migration
+## Configure the environment and apply committed migrations
 
 Run commands from `backend/`. A local `.env` template is included in this
-workspace but is ignored by Git. Teammates should copy `.env.example` to `.env`:
+workspace but is ignored by Git. Copy `.env.example` only when no local `.env` exists:
 
 ```powershell
-Copy-Item .env.example .env
+if (!(Test-Path -LiteralPath .env)) { Copy-Item .env.example .env }
 ```
 
-Edit `.env` and replace `YOUR_PASSWORD` with your local PostgreSQL password:
-
-```dotenv
-DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/learning_platform?schema=public"
-```
-
-Adjust the host, port, or username if your PostgreSQL server uses different
-settings. URL-encode special characters in credentials, such as `%40` for `@`.
+Set `DATABASE_URL` in the ignored local environment file to your own database
+configuration. Configure the other variable names in the [root setup guide](../../README.md#environment-configuration) as needed. This guide intentionally includes no datasource values.
 Keep actual credentials out of Git and chat.
 
 ```powershell
@@ -51,14 +47,14 @@ npm.cmd run start:dev
 
 The initial SQL migration can be prepared without a running database. Its
 presence in this repository does not mean it has been applied locally.
-`prisma:deploy` applies the committed migration without requiring a shadow
-database. Use `prisma:migrate -- --name describe_your_change` when the
+`prisma:deploy` applies committed migrations without requiring a shadow
+database. Use `npm run prisma:migrate -- --name describe_your_change` when the
 schema changes. The local PostgreSQL user needs permission to create the shadow
 database used by `prisma migrate dev` (the default local `postgres` user has it).
 If Prisma proposes resetting an existing database containing data, stop and
-investigate before accepting.
+investigate; explicit developer approval is required for any reset.
 
-To view the resulting table, refresh **Schemas > public > Tables** in pgAdmin4,
+To view the resulting tables, refresh **Schemas > public > Tables** in pgAdmin4,
 or run `npm.cmd run prisma:studio`.
 
 ## Verify the connection
@@ -75,7 +71,9 @@ Invoke-RestMethod http://localhost:4000/api/health/database
 `{ "status": "ok", "database": "connected" }` only when Prisma can query the
 `users` table, even if it has no rows. It returns HTTP `503` if PostgreSQL is
 unreachable, credentials are wrong, or the migration has not been applied.
-Database connections and queries have five-second timeouts.
+Database connections and queries have five-second timeouts. This probe only
+queries `users`; also check migration status and connected learning workflows
+before claiming the complete schema is ready.
 
 The backend connects lazily, so a successful build or an HTTP `200` from
 `/api/health` does not prove that the database is ready.
@@ -90,7 +88,8 @@ npm.cmd run test:e2e
 npm.cmd run lint
 ```
 
-Copy `.env.example` to `.env` first if needed; the placeholder is sufficient for
+Install dependencies in both packages first (backend domain builds use frontend esbuild).
+Copy `.env.example` to `.env` only if no local file already exists; the placeholder is sufficient for
 these checks. The end-to-end suite substitutes the database provider to verify
 HTTP behavior, including readiness failures. It does not apply migrations or
 prove a real PostgreSQL connection; use `/api/health/database` for that final check.

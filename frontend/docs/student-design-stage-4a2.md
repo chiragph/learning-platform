@@ -1,5 +1,7 @@
 # DECODE — Student Workspace Refinements, Stage 4A.2
 
+> **Historical stage report.** Current auth, account persistence, Instructor access and submission behavior may supersede this report. Use the [current frontend guide](../../docs/FRONTEND-GUIDE.md), [architecture](../../docs/PROJECT-ARCHITECTURE.md) and [status](../../docs/PROJECT-STATUS.md) for implementation work; retain this report for design rationale and dated validation.
+
 Implemented on `feature/student-dashboard`. This report describes only the Stage 4A.2 changes; the working tree also contains the earlier Stage 4A and 4A.1 implementation. All work remains unstaged and uncommitted. No branch switch, commit, push, merge, backend/database change, or Stage 4B/4C/instructor work was performed.
 
 ## Implementation
@@ -91,7 +93,7 @@ The Emmet tests invoke the actual installed provider and the registered Tab acti
 
 Browser verification is incomplete. CUA had no browser-tab provider, and its selected native Chrome window returned a screenshot of VS Code. I stopped UI input after that mismatch. No DECODE browser screenshot or physical Tab/layout/scroll verification is claimed.
 
-Run `npm run dev` in `frontend` in a foreground terminal, then open `http://localhost:3000`. The development demo uses `student@example.test` with `Decode123!`; existing demo registration is also available. Demo sign-in remains disabled in the production build by the existing auth implementation. Use disposable test accounts for reset/removal checks.
+Historical browser-demo credentials are omitted. Use the current email/password setup and an approved local test account; preserve existing browser data when reviewing this stage.
 
 - [ ] On `/profile`, inspect all 14 avatars at desktop, tablet and 360 px mobile widths. Select a new character by mouse and keyboard, save, confirm both header and Profile update, reload, and verify persistence. Cancel edits and confirm no profile change.
 - [ ] Collapse/expand the desktop sidebar by mouse and keyboard. Check visible tooltips on hover/focus, Escape dismissal, active My Learning state on every activity route, increased editor width, no horizontal overflow, and preference after reload.

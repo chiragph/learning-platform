@@ -1,5 +1,7 @@
 # PR #9 — Student Dashboard authentication integration
 
+> **Historical stage report.** Current auth, account persistence, Instructor access and submission behavior may supersede this report. Use the [current frontend guide](../../docs/FRONTEND-GUIDE.md), [architecture](../../docs/PROJECT-ARCHITECTURE.md) and [status](../../docs/PROJECT-STATUS.md) for implementation work; retain this report for design rationale and dated validation.
+
 Date: 2026-10-25. Branch: feature/student-dashboard. Main was fetched before integration: 4d8301f784e18fa054d51f671139753bbb9e10b0. Feature HEAD: ac4d6c7e2680756240acbb128ff2f9173e60aa24.
 
 ## Local merge and authoritative authentication

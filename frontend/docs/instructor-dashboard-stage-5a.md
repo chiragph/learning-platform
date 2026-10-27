@@ -1,5 +1,7 @@
 # DECODE — Stage 5A implementation report
 
+> **Historical stage report.** Current auth, account persistence, Instructor access and submission behavior may supersede this report. Use the [current frontend guide](../../docs/FRONTEND-GUIDE.md), [architecture](../../docs/PROJECT-ARCHITECTURE.md) and [status](../../docs/PROJECT-STATUS.md) for implementation work; retain this report for design rationale and dated validation.
+
 Date: 26 October 2026
 
 Branch: `feature/instructor-dashboard`

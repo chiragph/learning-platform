@@ -1,7 +1,11 @@
 # DECODE — Stage 4A implementation report
 
-Date: 2026-10-25  
-Branch: `feature/student-dashboard`  
+> **Historical stage report.** Current auth, account persistence, Instructor access and submission behavior may supersede this report. Use the [current frontend guide](../../docs/FRONTEND-GUIDE.md), [architecture](../../docs/PROJECT-ARCHITECTURE.md) and [status](../../docs/PROJECT-STATUS.md) for implementation work; retain this report for design rationale and dated validation.
+
+Date: 2026-10-25
+
+Branch: `feature/student-dashboard`
+
 Scope: student curriculum restructuring only. Ready for visual review.
 
 ## Delivered behavior
@@ -110,7 +114,7 @@ The existing development server at `http://localhost:3000` was left running. Bro
 To review:
 
 1. Use the existing development server, or run `npm.cmd run dev` from `frontend`. Demo sign-in intentionally remains development-only; `next start` does not enable demo accounts.
-2. Sign in at `http://localhost:3000/login` with `student@example.test` and the public demo passphrase `Decode123!`. Keep any existing browser records; no reset is needed.
+2. Historical browser-demo credentials are omitted. Use the current email/password setup and an approved local test account; preserve existing browser data when reviewing this stage.
 3. Open `/dashboard`: verify the compact welcome, resume context, actual progress, course rows, recent records, and My Learning shortcut.
 4. Open `/courses`: expand HTML, then each module. Check ordering, type icons, statuses, percentages, Start/Continue/Review, and the last-opened marker. Expand all and Collapse all should not move the page to another position or grant progress.
 5. Open a theory lesson, quiz, challenge, and guided project through the curriculum. Return to My Learning or Dashboard after each. Continue Learning should target that exact most recently opened activity, including after reload and when already completed.

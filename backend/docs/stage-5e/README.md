@@ -1,5 +1,7 @@
 # Stage 5E database and API proposal
 
+> **Historical proposal, superseded as an implementation reference.** Reviewed context below is 26 October 2026. The active schema now includes six learning tables and connected Instructor/Student flows; this candidate schema and its proposed endpoints remain unselected/unimplemented as written. Use the [current backend guide](../../../docs/BACKEND-GUIDE.md), [architecture](../../../docs/PROJECT-ARCHITECTURE.md), and [status](../../../docs/PROJECT-STATUS.md) before planning changes.
+
 Review status: **schema proposal only**, 26 October 2026. Prepared on the existing
 `feature/database-schema` branch, the schema branch in this checkout. The initial
 review did not change runtime source or the database. No proposed content-schema

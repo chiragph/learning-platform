@@ -1,6 +1,8 @@
 # Connected learning workflow
 
-Implemented on feature/database-schema. The existing instructor and student layouts and styles are retained; data bindings and explanatory copy now describe account-backed behavior.
+Current handoff: [architecture](../../docs/PROJECT-ARCHITECTURE.md), [API/schema guide](../../docs/BACKEND-GUIDE.md), and [status](../../docs/PROJECT-STATUS.md), reviewed 2026-10-27. Earlier test/migration execution statements below are historical evidence, not a current database readiness check.
+
+Implemented on feature/database-schema. The existing instructor and student layouts and styles are retained; data bindings now use account-backed behavior. Some Instructor shell preview copy remains obsolete.
 
 ## Authoring and delivery
 
@@ -14,7 +16,7 @@ On the instructor's first connection, an existing valid browser preview with rec
 
 The additive migration creates instructor_workspaces, learning_courses, learning_publications, learning_progress, learning_quiz_attempts and learning_submissions. Existing users, sessions and IDs are retained. Typed editor documents and immutable published content use JSONB; ownership, course identity, publication references, student identity, revisions and attempts use relational keys. The database enforces same-course publication pointers and immutable publications/quiz attempts.
 
-All endpoints are under /api/learning. The existing HttpOnly session authenticates every request. Instructor endpoints require the designated instructor account. Student identity always comes from that session, never a request body. Mutating requests require JSON and the same origin policy as authentication. Responses use no-store. Instructor saves and student updates use compare-and-swap revisions; stale changes return 409. Student writes are queued; failures retain unsaved changes in the open page and show a retry action.
+All endpoints are under /api/learning. The existing HttpOnly session authenticates every request. Instructor endpoints require the designated instructor account. Student identity always comes from that session, never a request body. Mutating requests require JSON and the same origin policy as authentication. Responses use no-store. Instructor saves and student updates use compare-and-swap revisions; outer stale revisions return 409 (inner editor-domain stale errors are currently wrapped as 400). Student writes are queued; failures retain unsaved changes in the open page and show a retry action.
 
 Quiz answer keys and explanations are removed from curriculum responses. Submission validates answers against the requested live publication, calculates weighted points on the server, and atomically records attempt history and best/latest/count aggregates. Idempotency keys prevent duplicate attempts, and reuse with changed answers is rejected. Historical attempt reviews include their original questions. Generic progress saves cannot change quiz scores/history.
 
@@ -22,7 +24,7 @@ Theory completion and workshop steps are self-reviewed. Lab checks run in the ex
 
 Workshop completion snapshots the saved HTML/CSS/JavaScript into a real student submission. The instructor's existing Submissions page lists those records, downloads source as JSON, and saves feedback/status. Draft review feedback stays private; Reviewed and Changes requested publish feedback to the student. The workshop completion area shows that feedback. Changes requested enables resubmission of saved code. Binary ZIP/file upload storage is not introduced: the connected submission is the code from the existing workspace.
 
-Student dashboards, course progress, quiz history and instructor insights read these account records. Reset learning progress clears the student's working progress and drafts; immutable quiz audit records and delivered submissions are retained. Profile display/avatar, editor preferences and workspace image assets retain their existing browser-local behavior. Earlier browser-only student demo progress is preserved in its original storage and is not silently converted into verified quiz attempts.
+Student dashboards, course progress, quiz history and instructor insights read these account records. The dedicated reset endpoint clears working progress/drafts while retaining immutable quiz audit records and delivered submissions. The Profile reset control currently calls ordinary merging persistence instead and can leave data intact; see the [known bug](../../docs/PROJECT-STATUS.md#known-bugs-and-limitations). Profile display/avatar, editor preferences and workspace image assets retain their existing browser-local behavior. Earlier browser-only student demo progress is preserved in its original storage and is not silently converted into verified quiz attempts.
 
 ## Development and deployment
 
