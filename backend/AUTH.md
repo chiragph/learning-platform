@@ -2,9 +2,10 @@
 
 Authentication is implemented on `feature/database-schema`. The existing login
 and registration layouts, styles, and owl animation are preserved. Successful
-registration or login opens `/login/success`, a plain page showing **Login
-successful.** after the server verifies the session. An unauthenticated visitor
-is redirected to `/login`.
+registration or login opens `/dashboard` for students. The single provisioned
+instructor, `decode.instructor@gmail.com`, opens `/instructor`. The legacy
+`/login/success` URL forwards to the appropriate dashboard after verifying the
+session. An unauthenticated visitor is redirected to `/login`.
 
 ## Start locally
 
@@ -26,12 +27,46 @@ npm.cmd run dev
 
 Open `http://localhost:3000/register` and create an account. To test login, open
 `http://localhost:3000/login` and enter that account's email and password. No
-fixed demo account or password is created.
+student demo account or password is created.
+
+## Provision the instructor
+
+The instructor address is reserved and cannot be claimed through registration.
+Use the existing PostgreSQL database and migrations; no additional schema
+migration is required for this login workflow. From `backend/`, supply the
+project owner's instructor password in the local `INSTRUCTOR_BOOTSTRAP_PASSWORD`
+environment variable (or ignored `.env`), then run:
+
+```powershell
+npm.cmd run instructor:provision
+```
+
+This builds the backend and explicitly creates the designated account with the
+existing salted-scrypt password helper. It never prints the password. Reruns
+verify the existing password and preserve its UUID/hash. An existing reserved
+student account is promoted only if that password already matches, revoking its
+old sessions. A conflicting password or duplicate normalized email stops the
+command without overwriting credentials. Provisioning does not run automatically
+on application startup. Remove the bootstrap secret after use; normal login
+only needs the stored password hash.
+
+Server and browser session guards protect instructor routes, including production
+and cached navigation. Only the designated email with stored `INSTRUCTOR` role
+is exposed as an instructor by login and `/auth/me`; other existing role values
+are treated as `STUDENT` for this product's dashboard access. An email match alone
+never bypasses password/session verification. Instructor layouts, CSS, editor UI,
+and local content storage remain intact. Course persistence/publication/submission
+integration remains the separate Stage 5E proposal in `docs/stage-5e/`.
 
 The frontend proxies `/api/*` to `http://localhost:4000`. To change this, copy
 `frontend/.env.example` to `.env.local`, set `API_URL` without a trailing slash,
 and restart the frontend. If the frontend origin changes, set `FRONTEND_URL` in
-`backend/.env` and restart the backend. `PORT` changes the backend port. Use HTTPS
+`backend/.env` and restart the backend. With a local frontend and a non-production
+backend, ports 3000, 3001, and 3100 on localhost/127.0.0.1/IPv6 loopback are accepted
+so Next's automatic port fallback works. Production allows only `FRONTEND_URL`
+and exact additional origins configured in comma-separated `FRONTEND_ORIGINS`.
+Origin checks and CORS use the same allowlist; arbitrary ports/hosts and cross-site
+submissions remain blocked. `PORT` changes the backend port. Use HTTPS
 and `NODE_ENV=production` when deploying so session cookies are marked `Secure`.
 
 For a compiled backend, run `npm.cmd run build` then `npm.cmd run start:prod`.
@@ -82,9 +117,15 @@ npm.cmd run lint
 The unit and HTTP suites substitute Prisma test doubles. With both applications
 and PostgreSQL running, also run `npm.cmd run test:auth:live`. This checks actual
 registration and login through the frontend proxy, the stored password and token
-hashes, the protected success page, session expiry, and logout. It creates a
+hashes, dashboard routing/access, session expiry, and logout. It creates a
 uniquely named temporary account and removes only that account and its sessions
 in a `finally` block. It does not reset the database.
+
+When `INSTRUCTOR_BOOTSTRAP_PASSWORD` is supplied to the live check, it also
+verifies the real instructor password/session, `/instructor` access, reserved
+registration rejection, and student/anonymous exclusion. The existing instructor
+account is retained; only the test's login session is revoked. Use an app origin
+matching `FRONTEND_URL` so the check also exercises browser-origin validation.
 
 From `frontend/`, run `npm.cmd run lint` and `npm.cmd run build`. The existing
 Google Fonts configuration needs network access during the production build.

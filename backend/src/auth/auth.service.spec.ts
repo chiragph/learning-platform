@@ -81,6 +81,38 @@ describe('Database authentication', () => {
     expect(result.maxAge).toBe(30 * 24 * 60 * 60 * 1000);
   });
 
+  it('reserves the instructor address instead of allowing public registration to claim it', async () => {
+    await expect(service.register({ name: 'Impersonator', email: ' DECODE.INSTRUCTOR@GMAIL.COM ', password, role: 'INSTRUCTOR' }))
+      .rejects.toMatchObject({ status: 409 });
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it('authenticates the provisioned instructor using the stored password, not an email-only bypass', async () => {
+    const instructor = { ...user, email: 'decode.instructor@gmail.com', role: 'INSTRUCTOR' };
+    prisma.user.findUnique.mockResolvedValue({ ...instructor, passwordHash });
+    const result = await service.login({ email: ' DECODE.INSTRUCTOR@GMAIL.COM ', password });
+    expect(result.user).toEqual(instructor);
+    expect(result.user).not.toHaveProperty('passwordHash');
+    prisma.session.create.mockClear();
+    await expect(service.login({ email: instructor.email, password: 'incorrect' })).rejects.toMatchObject({ status: 401 });
+    expect(prisma.session.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['ADMIN', 'INSTRUCTOR'])('treats other accounts with a stored %s role as students on login and session refresh', async role => {
+    prisma.user.findUnique.mockResolvedValue({ ...user, role, passwordHash });
+    expect((await service.login({ email: user.email, password })).user.role).toBe('STUDENT');
+    prisma.session.findUnique.mockResolvedValue({ user: { ...user, role }, expiresAt: new Date(Date.now() + 60000) });
+    expect((await service.me('a'.repeat(64))).user.role).toBe('STUDENT');
+  });
+
+  it('does not grant instructor access from the email alone and keeps the provisioned instructor role on session refresh', async () => {
+    const reservedStudent = { ...user, email: 'decode.instructor@gmail.com' };
+    prisma.user.findUnique.mockResolvedValue({ ...reservedStudent, passwordHash });
+    expect((await service.login({ email: reservedStudent.email, password })).user.role).toBe('STUDENT');
+    prisma.session.findUnique.mockResolvedValue({ user: { ...reservedStudent, role: 'INSTRUCTOR' }, expiresAt: new Date(Date.now() + 60000) });
+    expect((await service.me('a'.repeat(64))).user.role).toBe('INSTRUCTOR');
+  });
+
   it.each(['wrong password', 'missing user', 'invalid stored hash'])(
     'rejects %s with the same error and creates no session',
     async (scenario) => {

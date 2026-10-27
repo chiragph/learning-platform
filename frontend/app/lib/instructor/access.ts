@@ -1,3 +1,10 @@
-// NODE_ENV is replaced at build time. A production build is always closed,
-// including when next start runs on localhost. No cookie or role is altered.
-export function instructorPreviewEnabled() { return process.env.NODE_ENV === "development"; }
+import type { AuthUser } from "../../components/auth/auth-client";
+
+// UI navigation is only a convenience; server layouts verify the real session.
+export function instructorAccessAllowed(user: Pick<AuthUser, "email" | "role"> | null | undefined) {
+  return user?.role === "INSTRUCTOR" && user.email.trim().toLowerCase() === "decode.instructor@gmail.com";
+}
+
+export function accountHome(user: Pick<AuthUser, "email" | "role">) {
+  return instructorAccessAllowed(user) ? "/instructor" : "/dashboard";
+}

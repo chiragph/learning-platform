@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { accountHome } from "../../lib/instructor/access";
+import type { AuthUser } from "../../components/auth/auth-client";
 
 export const metadata: Metadata = { title: "Login successful | DECODE" };
 
@@ -22,7 +24,11 @@ async function LoginResult() {
   if (response.status === 401) redirect("/login");
   if (!response.ok) return <p>Unable to verify your session. Please refresh to try again.</p>;
 
-  return <h1>Login successful.</h1>;
+  const result = await response.json().catch(() => null) as { user?: AuthUser } | null;
+  if (!result?.user || typeof result.user.email !== "string" || !["STUDENT", "INSTRUCTOR", "ADMIN"].includes(result.user.role)) {
+    return <p>Unable to verify your session. Please refresh to try again.</p>;
+  }
+  redirect(accountHome(result.user));
 }
 
 export default function LoginSuccessPage() {

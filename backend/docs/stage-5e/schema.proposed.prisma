@@ -1,0 +1,631 @@
+// REVIEW ONLY. Not referenced by prisma.config.ts; do not deploy this file.
+// Required SQL constraints/triggers and service rules: README.md in this folder.
+generator client {
+  provider               = "prisma-client"
+  output                 = "../../src/generated/prisma"
+  moduleFormat           = "cjs"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  INSTRUCTOR
+  STUDENT
+}
+
+enum RevisionState {
+  DRAFT
+  PUBLISHED
+}
+
+enum PublicationStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum ActivityType {
+  THEORY
+  QUIZ
+  LAB
+  WORKSHOP
+}
+
+enum ProgressState {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum RecordSource {
+  SERVER
+  LEGACY_IMPORT
+}
+
+enum ReviewStatus {
+  PENDING
+  IN_REVIEW
+  CHANGES_REQUESTED
+  REVIEWED
+}
+
+enum FeedbackVisibility {
+  PRIVATE
+  PUBLISHED
+}
+
+enum ScanStatus {
+  PENDING
+  CLEAN
+  REJECTED
+}
+
+enum UploadState {
+  ISSUED
+  UPLOADED
+  ATTACHED
+  EXPIRED
+  REJECTED
+}
+
+enum WorkshopEntryKind {
+  STEP
+  REQUIREMENT
+  DELIVERABLE
+}
+
+model User {
+  id           String             @id @default(uuid()) @db.Uuid
+  name         String
+  email        String             @unique
+  passwordHash String             @map("password_hash")
+  role         UserRole           @default(STUDENT)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  sessions     Session[]
+  courses      Course[]
+  progress     StudentProgress[]
+  quizAttempts QuizAttempt[]
+  labAttempts  LabAttempt[]
+  submissions  Submission[]
+  files        SubmissionFile[]
+  reviews      SubmissionReview[]
+  imports      ProgressImport[]
+  workspaces   StudentWorkspace[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique @map("token_hash")
+  userId    String   @map("user_id") @db.Uuid
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Stable identities: mutable presentation belongs in revisions below.
+model Course {
+  id                  String           @id @default(uuid()) @db.Uuid
+  key                 String           @unique @db.VarChar(200)
+  instructorId        String           @db.Uuid
+  publishedRevisionId String?          @db.Uuid
+  archivedAt          DateTime?        @db.Timestamptz(3)
+  createdAt           DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime         @updatedAt @db.Timestamptz(3)
+  instructor          User             @relation(fields: [instructorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  revisions           CourseRevision[] @relation("CourseRevisions")
+  publishedRevision   CourseRevision?  @relation("PublishedCourse", fields: [publishedRevisionId, id], references: [id, courseId], onDelete: Restrict, onUpdate: Restrict)
+  modules             Module[]
+  activities          Activity[]
+
+  @@index([instructorId, archivedAt])
+  @@index([publishedRevisionId, id])
+  @@map("courses")
+}
+
+model CourseRevision {
+  id          String           @id @default(uuid()) @db.Uuid
+  courseId    String           @db.Uuid
+  number      Int
+  state       RevisionState    @default(DRAFT)
+  revision    Int              @default(1)
+  title       String           @db.VarChar(200)
+  description String
+  category    String
+  difficulty  String
+  duration    String
+  objectives  String[]
+  color       String
+  icon        String
+  position    Int
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+  publishedAt DateTime?        @db.Timestamptz(3)
+  course      Course           @relation("CourseRevisions", fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  liveFor     Course[]         @relation("PublishedCourse")
+  modules     ModuleRevision[]
+
+  @@unique([courseId, number])
+  @@unique([id, courseId])
+  @@index([courseId, state])
+  @@map("course_revisions")
+}
+
+model Module {
+  id         String           @id @default(uuid()) @db.Uuid
+  key        String           @unique @db.VarChar(200)
+  courseId   String           @db.Uuid
+  archivedAt DateTime?        @db.Timestamptz(3)
+  createdAt  DateTime         @default(now()) @db.Timestamptz(3)
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  revisions  ModuleRevision[]
+  activities Activity[]
+
+  @@unique([id, courseId])
+  @@index([courseId, archivedAt])
+  @@map("modules")
+}
+
+model ModuleRevision {
+  id               String            @id @default(uuid()) @db.Uuid
+  moduleId         String            @db.Uuid
+  courseId         String            @db.Uuid
+  courseRevisionId String            @db.Uuid
+  title            String            @db.VarChar(200)
+  description      String
+  position         Int
+  module           Module            @relation(fields: [moduleId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Restrict)
+  courseRevision   CourseRevision    @relation(fields: [courseRevisionId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Restrict)
+  activities       ActivityVersion[]
+
+  @@unique([courseRevisionId, moduleId])
+  @@unique([courseRevisionId, position])
+  @@unique([id, courseRevisionId, courseId])
+  @@index([moduleId, courseId])
+  @@index([courseRevisionId, courseId])
+  @@map("module_revisions")
+}
+
+model Activity {
+  id            String            @id @default(uuid()) @db.Uuid
+  key           String            @unique @db.VarChar(200)
+  courseId      String            @db.Uuid
+  moduleId      String            @db.Uuid
+  type          ActivityType
+  referenceKind String?           @db.VarChar(20)
+  referenceId   String?           @db.VarChar(200)
+  archivedAt    DateTime?         @db.Timestamptz(3)
+  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+  course        Course            @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  module        Module            @relation(fields: [moduleId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Restrict)
+  versions      ActivityVersion[]
+  progress      StudentProgress[]
+
+  @@unique([id, courseId])
+  @@unique([referenceKind, referenceId])
+  @@index([moduleId, courseId])
+  @@index([courseId, archivedAt])
+  @@map("activities")
+}
+
+model ActivityVersion {
+  id                String             @id @default(uuid()) @db.Uuid
+  activityId        String             @db.Uuid
+  courseId          String             @db.Uuid
+  courseRevisionId  String             @db.Uuid
+  moduleRevisionId  String             @db.Uuid
+  title             String             @db.VarChar(200)
+  description       String
+  minutes           Int
+  position          Int
+  status            PublicationStatus  @default(DRAFT)
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  activity          Activity           @relation(fields: [activityId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Restrict)
+  moduleRevision    ModuleRevision     @relation(fields: [moduleRevisionId, courseRevisionId, courseId], references: [id, courseRevisionId, courseId], onDelete: Restrict, onUpdate: Restrict)
+  theory            TheoryContent?
+  quiz              QuizContent?
+  lab               LabContent?
+  workshop          WorkshopContent?
+  progress          StudentProgress[]  @relation("LastProgressVersion")
+  completedProgress StudentProgress[]  @relation("CompletedProgressVersion")
+  quizAttempts      QuizAttempt[]
+  labAttempts       LabAttempt[]
+  submissions       Submission[]
+  files             SubmissionFile[]
+  workspaces        StudentWorkspace[]
+
+  @@unique([activityId, courseRevisionId])
+  @@unique([moduleRevisionId, position])
+  @@unique([id, activityId])
+  @@index([moduleRevisionId, courseRevisionId, courseId])
+  @@index([activityId, courseId])
+  @@map("activity_versions")
+}
+
+model TheoryContent {
+  activityVersionId String          @id @db.Uuid
+  version           ActivityVersion @relation(fields: [activityVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  blocks            TheoryBlock[]
+
+  @@map("theory_content")
+}
+
+model TheoryBlock {
+  id                String        @id @default(uuid()) @db.Uuid
+  activityVersionId String        @db.Uuid
+  key               String        @db.VarChar(200)
+  position          Int
+  type              String        @db.VarChar(30)
+  payload           Json          @db.JsonB
+  theory            TheoryContent @relation(fields: [activityVersionId], references: [activityVersionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([activityVersionId, key])
+  @@unique([activityVersionId, position])
+  @@map("theory_blocks")
+}
+
+model QuizContent {
+  activityVersionId String          @id @db.Uuid
+  instructions      String
+  passPercent       Int             @default(70)
+  version           ActivityVersion @relation(fields: [activityVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  questions         QuizQuestion[]
+
+  @@map("quiz_content")
+}
+
+model QuizQuestion {
+  id                String              @id @default(uuid()) @db.Uuid
+  activityVersionId String              @db.Uuid
+  key               String              @db.VarChar(200)
+  position          Int
+  topic             String              @db.VarChar(200)
+  prompt            String
+  points            Decimal?            @db.Decimal(12, 4)
+  quiz              QuizContent         @relation(fields: [activityVersionId], references: [activityVersionId], onDelete: Restrict, onUpdate: Restrict)
+  options           QuizOption[]
+  answerKey         QuizAnswerKey?
+  answers           QuizAttemptAnswer[]
+
+  @@unique([activityVersionId, key])
+  @@unique([activityVersionId, position])
+  @@unique([id, activityVersionId])
+  @@map("quiz_questions")
+}
+
+model QuizOption {
+  id         String              @id @default(uuid()) @db.Uuid
+  questionId String              @db.Uuid
+  key        String              @db.VarChar(200)
+  position   Int
+  text       String
+  question   QuizQuestion        @relation(fields: [questionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  correctFor QuizAnswerKey[]
+  selectedBy QuizAttemptAnswer[]
+
+  @@unique([questionId, key])
+  @@unique([questionId, position])
+  @@unique([id, questionId])
+  @@map("quiz_options")
+}
+
+// Separate private answer keys prevent accidental inclusion in student DTOs.
+model QuizAnswerKey {
+  questionId      String       @id @db.Uuid
+  correctOptionId String       @db.Uuid
+  explanation     String
+  question        QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  correctOption   QuizOption   @relation(fields: [correctOptionId, questionId], references: [id, questionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([correctOptionId, questionId])
+  @@map("quiz_answer_keys")
+}
+
+model LabContent {
+  activityVersionId String             @id @db.Uuid
+  objective         String
+  instructions      String
+  hints             String
+  starter           Json               @db.JsonB
+  widths            Int[]
+  version           ActivityVersion    @relation(fields: [activityVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  checks            ValidationCheck[]
+  privateContent    LabPrivateContent?
+
+  @@map("lab_content")
+}
+
+model LabPrivateContent {
+  activityVersionId String     @id @db.Uuid
+  solution          String
+  lab               LabContent @relation(fields: [activityVersionId], references: [activityVersionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("lab_private_content")
+}
+
+model ValidationCheck {
+  id                String     @id @default(uuid()) @db.Uuid
+  activityVersionId String     @db.Uuid
+  key               String     @db.VarChar(200)
+  position          Int
+  type              String     @db.VarChar(30)
+  description       String
+  configuration     Json       @db.JsonB
+  lab               LabContent @relation(fields: [activityVersionId], references: [activityVersionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([activityVersionId, key])
+  @@unique([activityVersionId, position])
+  @@map("validation_checks")
+}
+
+model WorkshopContent {
+  activityVersionId      String                  @id @db.Uuid
+  objectives             String[]
+  hints                  String
+  resources              Json                    @db.JsonB
+  starter                Json                    @db.JsonB
+  estimatedMinutes       Int?
+  submissionInstructions String?
+  acceptedExtensions     String[]
+  maxFileSizeBytes       Int?
+  maxFiles               Int?
+  evaluation             String
+  version                ActivityVersion         @relation(fields: [activityVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  entries                WorkshopEntry[]
+  privateContent         WorkshopPrivateContent?
+  submissions            Submission[]
+  files                  SubmissionFile[]
+
+  @@map("workshop_content")
+}
+
+model WorkshopPrivateContent {
+  activityVersionId String          @id @db.Uuid
+  feedbackGuidance  String
+  workshop          WorkshopContent @relation(fields: [activityVersionId], references: [activityVersionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("workshop_private_content")
+}
+
+model WorkshopEntry {
+  id                String            @id @default(uuid()) @db.Uuid
+  activityVersionId String            @db.Uuid
+  key               String            @db.VarChar(200)
+  kind              WorkshopEntryKind
+  position          Int
+  title             String            @db.VarChar(200)
+  description       String
+  workshop          WorkshopContent   @relation(fields: [activityVersionId], references: [activityVersionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([activityVersionId, key])
+  @@unique([activityVersionId, kind, position])
+  @@map("workshop_entries")
+}
+
+model StudentProgress {
+  id                         String           @id @default(uuid()) @db.Uuid
+  studentId                  String           @db.Uuid
+  activityId                 String           @db.Uuid
+  lastActivityVersionId      String           @db.Uuid
+  completedActivityVersionId String?          @db.Uuid
+  state                      ProgressState    @default(NOT_STARTED)
+  source                     RecordSource     @default(SERVER)
+  completedAt                DateTime?        @db.Timestamptz(3)
+  lastVisitedAt              DateTime?        @db.Timestamptz(3)
+  legacySummary              Json?            @db.JsonB
+  revision                   Int              @default(1)
+  createdAt                  DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime         @updatedAt @db.Timestamptz(3)
+  student                    User             @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  activity                   Activity         @relation(fields: [activityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  lastVersion                ActivityVersion  @relation("LastProgressVersion", fields: [lastActivityVersionId, activityId], references: [id, activityId], onDelete: Restrict, onUpdate: Restrict)
+  completedVersion           ActivityVersion? @relation("CompletedProgressVersion", fields: [completedActivityVersionId, activityId], references: [id, activityId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([studentId, activityId])
+  @@index([activityId])
+  @@index([lastActivityVersionId, activityId])
+  @@index([completedActivityVersionId, activityId])
+  @@index([studentId, state, updatedAt])
+  @@map("student_progress")
+}
+
+model QuizAttempt {
+  id                String              @id @default(uuid()) @db.Uuid
+  studentId         String              @db.Uuid
+  activityId        String              @db.Uuid
+  activityVersionId String              @db.Uuid
+  attempt           Int
+  idempotencyKey    String              @db.VarChar(200)
+  requestHash       String              @db.VarChar(64)
+  source            RecordSource        @default(SERVER)
+  legacyKey         String?             @db.VarChar(200)
+  earnedPoints      Decimal             @db.Decimal(14, 4)
+  totalPoints       Decimal             @db.Decimal(14, 4)
+  percent           Int
+  submittedAt       DateTime            @default(now()) @db.Timestamptz(3)
+  student           User                @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version           ActivityVersion     @relation(fields: [activityVersionId, activityId], references: [id, activityId], onDelete: Restrict, onUpdate: Restrict)
+  answers           QuizAttemptAnswer[]
+
+  @@unique([studentId, activityId, attempt])
+  @@unique([studentId, idempotencyKey])
+  @@unique([studentId, activityId, legacyKey])
+  @@unique([id, activityVersionId])
+  @@index([activityVersionId, activityId])
+  @@index([studentId, activityId, submittedAt, id])
+  @@map("quiz_attempts")
+}
+
+model QuizAttemptAnswer {
+  id                String       @id @default(uuid()) @db.Uuid
+  attemptId         String       @db.Uuid
+  activityVersionId String       @db.Uuid
+  questionId        String       @db.Uuid
+  selectedOptionId  String?      @db.Uuid
+  correct           Boolean
+  earnedPoints      Decimal      @db.Decimal(12, 4)
+  attempt           QuizAttempt  @relation(fields: [attemptId, activityVersionId], references: [id, activityVersionId], onDelete: Restrict, onUpdate: Restrict)
+  question          QuizQuestion @relation(fields: [questionId, activityVersionId], references: [id, activityVersionId], onDelete: Restrict, onUpdate: Restrict)
+  selectedOption    QuizOption?  @relation(fields: [selectedOptionId, questionId], references: [id, questionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId, activityVersionId])
+  @@index([questionId, activityVersionId])
+  @@index([selectedOptionId, questionId])
+  @@map("quiz_attempt_answers")
+}
+
+model LabAttempt {
+  id                String          @id @default(uuid()) @db.Uuid
+  studentId         String          @db.Uuid
+  activityId        String          @db.Uuid
+  activityVersionId String          @db.Uuid
+  attempt           Int
+  idempotencyKey    String          @db.VarChar(200)
+  requestHash       String          @db.VarChar(64)
+  source            RecordSource    @default(SERVER)
+  passed            Boolean
+  results           Json            @db.JsonB
+  submittedAt       DateTime        @default(now()) @db.Timestamptz(3)
+  student           User            @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version           ActivityVersion @relation(fields: [activityVersionId, activityId], references: [id, activityId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([studentId, activityId, attempt])
+  @@unique([studentId, idempotencyKey])
+  @@index([activityVersionId, activityId])
+  @@index([studentId, activityId, submittedAt, id])
+  @@map("lab_attempts")
+}
+
+model Submission {
+  id                String             @id @default(uuid()) @db.Uuid
+  studentId         String             @db.Uuid
+  activityId        String             @db.Uuid
+  workshopVersionId String             @db.Uuid
+  attempt           Int
+  status            ReviewStatus       @default(PENDING)
+  revision          Int                @default(1)
+  idempotencyKey    String             @db.VarChar(200)
+  requestHash       String             @db.VarChar(64)
+  submittedAt       DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
+  student           User               @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version           ActivityVersion    @relation(fields: [workshopVersionId, activityId], references: [id, activityId], onDelete: Restrict, onUpdate: Restrict)
+  workshop          WorkshopContent    @relation(fields: [workshopVersionId], references: [activityVersionId], onDelete: Restrict, onUpdate: Restrict)
+  files             SubmissionFile[]
+  reviews           SubmissionReview[]
+
+  @@unique([studentId, activityId, attempt])
+  @@unique([studentId, idempotencyKey])
+  @@unique([id, studentId, workshopVersionId])
+  @@index([workshopVersionId, activityId])
+  @@index([activityId, status, submittedAt, id])
+  @@index([studentId, submittedAt, id])
+  @@map("submissions")
+}
+
+// Created when issuing an upload ticket; attached exactly once at finalization.
+model SubmissionFile {
+  id                String          @id @default(uuid()) @db.Uuid
+  studentId         String          @db.Uuid
+  activityId        String          @db.Uuid
+  workshopVersionId String          @db.Uuid
+  submissionId      String?         @db.Uuid
+  idempotencyKey    String          @db.VarChar(200)
+  requestHash       String          @db.VarChar(64)
+  originalName      String          @db.VarChar(255)
+  expectedSizeBytes Int
+  sizeBytes         Int?
+  declaredMediaType String          @db.VarChar(200)
+  mediaType         String?         @db.VarChar(200)
+  storageProvider   String          @db.VarChar(30)
+  bucket            String          @db.VarChar(200)
+  objectKey         String
+  objectVersion     String?
+  checksumSha256    String?         @db.VarChar(64)
+  state             UploadState     @default(ISSUED)
+  scanStatus        ScanStatus      @default(PENDING)
+  expiresAt         DateTime        @db.Timestamptz(3)
+  uploadedAt        DateTime?       @db.Timestamptz(3)
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  student           User            @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version           ActivityVersion @relation(fields: [workshopVersionId, activityId], references: [id, activityId], onDelete: Restrict, onUpdate: Restrict)
+  workshop          WorkshopContent @relation(fields: [workshopVersionId], references: [activityVersionId], onDelete: Restrict, onUpdate: Restrict)
+  submission        Submission?     @relation(fields: [submissionId, studentId, workshopVersionId], references: [id, studentId, workshopVersionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([storageProvider, bucket, objectKey])
+  @@unique([studentId, idempotencyKey])
+  @@index([workshopVersionId, activityId])
+  @@index([submissionId, studentId, workshopVersionId])
+  @@index([state, expiresAt])
+  @@index([scanStatus, createdAt])
+  @@map("submission_files")
+}
+
+// Append-only review events. Submission.revision is the concurrency token.
+model SubmissionReview {
+  id           String             @id @default(uuid()) @db.Uuid
+  submissionId String             @db.Uuid
+  instructorId String             @db.Uuid
+  revision     Int
+  status       ReviewStatus
+  visibility   FeedbackVisibility @default(PRIVATE)
+  feedback     String
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+  reviewedAt   DateTime?          @db.Timestamptz(3)
+  publishedAt  DateTime?          @db.Timestamptz(3)
+  submission   Submission         @relation(fields: [submissionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  instructor   User               @relation(fields: [instructorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([submissionId, revision])
+  @@index([submissionId, visibility, revision])
+  @@index([instructorId, createdAt])
+  @@map("submission_reviews")
+}
+
+// Source backup + audit, not a trusted grading source. Never import demo reviews.
+model ProgressImport {
+  id             String   @id @default(uuid()) @db.Uuid
+  studentId      String   @db.Uuid
+  snapshotHash   String   @db.VarChar(64)
+  idempotencyKey String   @db.VarChar(200)
+  requestHash    String   @db.VarChar(64)
+  sourceVersion  Int
+  snapshot       Json     @db.JsonB
+  report         Json     @db.JsonB
+  importedAt     DateTime @default(now()) @db.Timestamptz(3)
+  student        User     @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([studentId, snapshotHash])
+  @@unique([studentId, idempotencyKey])
+  @@map("progress_imports")
+}
+
+// Version-specific code/quiz/workshop resume state; retains stable step keys.
+model StudentWorkspace {
+  id                String          @id @default(uuid()) @db.Uuid
+  studentId         String          @db.Uuid
+  activityId        String          @db.Uuid
+  activityVersionId String          @db.Uuid
+  code              Json?           @db.JsonB
+  quizSession       Json?           @db.JsonB
+  workshopState     Json?           @db.JsonB
+  revision          Int             @default(1)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
+  student           User            @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version           ActivityVersion @relation(fields: [activityVersionId, activityId], references: [id, activityId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([studentId, activityVersionId])
+  @@index([activityVersionId, activityId])
+  @@map("student_workspaces")
+}

@@ -24,6 +24,8 @@
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:auth:live": "node test/auth.live.cjs",
+    "preinstructor:provision": "npm run build",
+    "instructor:provision": "node scripts/provision-instructor.cjs",
     "pretest:e2e": "npm run prisma:generate",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "prisma:generate": "prisma generate",

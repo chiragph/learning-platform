@@ -17,7 +17,7 @@ async function api(path, body, cookie) {
   const response = await fetch(`${frontend}/api/auth/${path}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json', Origin: frontend, 'Sec-Fetch-Site': 'same-origin' }),
       ...(cookie ? { Cookie: cookie } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -29,6 +29,23 @@ async function api(path, body, cookie) {
     result,
     cookie: response.headers.get('set-cookie')?.split(';')[0],
   };
+}
+
+async function expectPageRedirect(path, cookie, destination) {
+  const response = await fetch(`${frontend}${path}`, {
+    headers: cookie ? { Cookie: cookie } : {},
+    redirect: 'manual',
+    signal: AbortSignal.timeout(30000),
+  });
+  const body = await response.text();
+  // Suspense can stream an HTTP 200 before Next emits its redirect instruction.
+  assert.ok(
+    response.headers.get('location') === destination ||
+      body.includes(`NEXT_REDIRECT;replace;${destination};`) ||
+      body.includes(`url=${destination}`),
+    `${path} must redirect to ${destination}`,
+  );
+  return body;
 }
 
 (async () => {
@@ -94,15 +111,34 @@ async function api(path, body, cookie) {
       email,
     );
 
-    const success = await fetch(`${frontend}/login/success`, {
-      headers: { Cookie: login.cookie },
-      signal: AbortSignal.timeout(30000),
-    });
-    assert.equal(success.status, 200);
-    assert.match(await success.text(), /<h1>Login successful\.<\/h1>/);
+    await expectPageRedirect('/login/success', login.cookie, '/dashboard');
+    const denied = await expectPageRedirect('/instructor', login.cookie, '/dashboard');
+    assert.ok(!denied.includes('class="ins-sidebar"'), 'Student must not receive the instructor shell');
+    await expectPageRedirect('/instructor', undefined, '/login');
     console.log(
-      'PASS: Frontend API proxy, real login, Remember me, hashed session, protected success page.',
+      'PASS: Frontend API proxy, student dashboard redirect, Remember me, hashed session, instructor access denied.',
     );
+
+    if (process.env.INSTRUCTOR_BOOTSTRAP_PASSWORD) {
+      const instructorEmail = 'decode.instructor@gmail.com';
+      assert.equal((await api('register', { name: 'Impersonator', email: instructorEmail, password })).response.status, 409);
+      assert.equal((await api('login', { email: instructorEmail, password: 'incorrect password' })).response.status, 401);
+      const instructorLogin = await api('login', { email: instructorEmail, password: process.env.INSTRUCTOR_BOOTSTRAP_PASSWORD });
+      assert.equal(instructorLogin.response.status, 200);
+      assert.equal(instructorLogin.result.user.role, 'INSTRUCTOR');
+      try {
+        assert.equal((await api('me', undefined, instructorLogin.cookie)).result.user.role, 'INSTRUCTOR');
+        await expectPageRedirect('/login/success', instructorLogin.cookie, '/instructor');
+        const workspace = await fetch(`${frontend}/instructor`, { headers: { Cookie: instructorLogin.cookie }, signal: AbortSignal.timeout(30000) });
+        assert.equal(workspace.status, 200);
+        const html = await workspace.text();
+        assert.ok(html.includes('data-instructor-session-workspace'), 'Real instructor must receive the authenticated workspace');
+        assert.ok(html.includes('ins-sidebar'), 'Existing instructor shell must remain in place');
+        console.log('PASS: Reserved instructor registration rejected, wrong password denied, PostgreSQL instructor login and production page access.');
+      } finally {
+        await api('logout', {}, instructorLogin.cookie);
+      }
+    }
 
     await database.query(
       "UPDATE sessions SET expires_at = NOW() - INTERVAL '1 second' WHERE token_hash = $1",

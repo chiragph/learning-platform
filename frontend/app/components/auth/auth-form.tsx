@@ -8,6 +8,7 @@ import { validateAuth, type AuthErrors, type AuthMode, type AuthValues, type Fie
 import { AnimatedOwl, type AnimatedOwlHandle } from "./animated-owl";
 import { authRequest, type AuthUser } from "./auth-client";
 import { announceAuthChange } from "./student-session";
+import { accountHome } from "../../lib/instructor/access";
 
 const subscribe = () => () => {};
 const getHydrated = () => true;
@@ -59,7 +60,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       setValues({ name: "", email: "", password: "", confirmPassword: "" });
       setNotice(register ? "Account created successfully." : "Signed in successfully.");
       announceAuthChange();
-      router.replace(user.role === "STUDENT" ? "/dashboard" : "/login/success");
+      router.replace(accountHome(user));
       router.refresh();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to sign in. Please try again.");
