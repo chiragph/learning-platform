@@ -1,4 +1,7 @@
 "use client";
+import { authoredLabs } from "@/app/lib/learning/catalog";
+import { buildInstructorLabPreview } from "@/app/lib/instructor/lab-preview";
+
 
 import { useLayoutEffect, useRef, useState } from "react";
 import type { Code, LabRequirementResult } from "@/app/lib/student/types";
@@ -23,6 +26,7 @@ export function LabCheckRunner({ lab, code, images, onChecked, onChecking }: { l
     const message = (event: MessageEvent) => {
       if (finished) return;
       const width = lab.widths.find(width => event.source === frames.current.get(width)?.contentWindow);
+      if (width && authoredLabs.has(lab.id) && event.data?.channel === "decode-instructor-lab" && event.data?.token === job.token + ":" + width && event.data?.type === "result") { event = { ...event, data: {channel:"decode-preview", token:job.token + ":" + width, type:"lab-result", labId:lab.id, requirements:event.data.results} } as MessageEvent; }
       if (!width || cases.has(width)) return;
       if (isLabCheckError(event.data, job.token + ":" + width)) {
         finished = true; setJob(null);
@@ -47,6 +51,6 @@ export function LabCheckRunner({ lab, code, images, onChecked, onChecking }: { l
       const passed = current && result.requirements.find(item => item.id === requirement.id)?.passed;
       return <li key={requirement.id} data-passed={passed}><StudentIcon name={passed ? "check" : "code"} /><div><strong>{passed ? "Passed" : current ? "Needs work" : "Check again"} · {requirement.title}</strong>{!passed && <p>{requirement.help}</p>}{lab.widths.length > 1 && current && <small>{lab.widths.map(width => width + "px: " + (result.cases.get(width)?.find(item => item.id === requirement.id)?.passed ? "passed" : "needs work")).join(" · ")}</small>}</div></li>;
     })}</ul>}
-    {activeJob && <div className="student-lab-probes" aria-hidden="true" inert>{lab.widths.map(width => <iframe key={activeJob.token + width} ref={node => { if (node) frames.current.set(width, node); else frames.current.delete(width); }} title={"Isolated lab check at " + width + " pixels"} tabIndex={-1} width={width} height={600} style={{ width, height: 600 }} sandbox="allow-scripts" referrerPolicy="no-referrer" allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'" srcDoc={buildPreview(activeJob.code, activeJob.token + ":" + width, undefined, { images: activeJob.images, allowOnlineImages: true }, lab.id)} />)}</div>}
+    {activeJob && <div className="student-lab-probes" aria-hidden="true" inert>{lab.widths.map(width => <iframe key={activeJob.token + width} ref={node => { if (node) frames.current.set(width, node); else frames.current.delete(width); }} title={"Isolated lab check at " + width + " pixels"} tabIndex={-1} width={width} height={600} style={{ width, height: 600 }} sandbox="allow-scripts" referrerPolicy="no-referrer" allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'" srcDoc={authoredLabs.has(lab.id) ? buildInstructorLabPreview(activeJob.code, activeJob.token + ":" + width, authoredLabs.get(lab.id)) : buildPreview(activeJob.code, activeJob.token + ":" + width, undefined, { images: activeJob.images, allowOnlineImages: true }, lab.id)} />)}</div>}
   </section>;
 }

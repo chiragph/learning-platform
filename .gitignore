@@ -28,3 +28,5 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+/backend/domain/

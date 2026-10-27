@@ -5,10 +5,10 @@ export type AuthUser = {
   role: "STUDENT" | "INSTRUCTOR" | "ADMIN";
 };
 
-export async function authRequest<T>(path: string, body?: Record<string, unknown>): Promise<T> {
+export async function authRequest<T>(path: string, body?: Record<string, unknown>, scope?: "student" | "instructor"): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`/api/auth/${path}`, {
+    response = await fetch(`/api/auth/${path}${scope ? `?scope=${scope}` : ""}`, {
       method: body === undefined ? "GET" : "POST",
       headers: body === undefined ? undefined : { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),

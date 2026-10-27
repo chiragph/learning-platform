@@ -16,13 +16,20 @@ window.HTMLDialogElement.prototype.close = function () { this.open = false; };
 window.confirm = () => false;
 window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 const { createRoot, hydrateRoot } = await import("react-dom/client"), dependency = createRequire(import.meta.url);
+let submissionRows = [], reviewFailure = false;
 function application(runtime) {
   const cache = new Map(), navigation = [];
   function load(file) {
     file = path.resolve(file); if (cache.has(file)) return cache.get(file).exports;
     const compiled = { exports: {} }; cache.set(file, compiled);
-    const source = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+    const source = ts.transpileModule(fs.readFileSync(file.endsWith("/progress-provider.tsx") || file.endsWith("\\progress-provider.tsx") ? path.resolve("tests/fixtures/local-progress-provider.txt") : file, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
     function require(specifier) {
+      if (specifier === "../../lib/learning/client") return { learningRequest: async (url, body) => {
+        if(url === 'instructor/submissions') return {records:structuredClone(submissionRows)};
+        if(url === 'instructor/reviews') { if(reviewFailure)throw new Error('Review changed. Reload before saving.'); const row=submissionRows.find(r=>r.id===body.id); assert.equal(body.expectedRevision,row.revision);Object.assign(row,{feedback:body.feedback,status:body.status,revision:row.revision+1});return {records:structuredClone(submissionRows)}; }
+        return {html:'<h1>Saved work</h1>',css:'',javascript:''};
+      }};
+      if (specifier === "../../lib/instructor/remote-repository") return { RemoteInstructorRepository: load("app/lib/instructor/repository.ts").LocalInstructorRepository };
       if (specifier.endsWith(".css")) return {};
       if (specifier === "next/link") return { __esModule: true, default: ({ href, children, ...props }) => React.createElement("a", { href, ...props }, children) };
       if (specifier === "../student/monaco-runtime" && runtime) return runtime;
@@ -134,43 +141,21 @@ test("archived/unsupported Workshop records are read-only while original starter
   finally { await page.close(); }
 });
 
-test("Submissions initially shows honest zero counts and loads clearly fictional local records without reading student data", async () => {
-  const page = await mount("submissions-view", "SubmissionsView", undefined, undefined, { href: "/instructor/submissions", hydrate: true }); window.localStorage.setItem("student-progress", "untouched");
-  try { assert.equal(page.errors.length, 0); assert.match(page.node.textContent, /No authenticated student submissions/); assert.deepEqual([...page.node.querySelectorAll('.ins-demo-stats strong')].map(n => n.textContent), ["0", "0", "0", "0"]); await click(button(page.node, "Load Local Demo Records")); assert.equal(page.node.querySelectorAll('.ins-demo-row').length, 4); assert.equal(page.node.querySelectorAll('.ins-demo-row .ins-demo-label').length, 4); assert.deepEqual([...page.node.querySelectorAll('.ins-demo-stats strong')].map(n => n.textContent), ["4", "4", "0", "0"]); assert.equal(window.localStorage.getItem("student-progress"), "untouched"); assert.equal(window.localStorage.getItem("decode-instructor-preview-v1"), null); }
-  finally { await page.close(); }
+const submissionFixture=()=>({id:'submission-one',studentName:'Real learner',referenceId:'portfolio',courseId:'html',activityId:'project:portfolio',courseTitle:'HTML',workshopTitle:'Portfolio',projectTitle:'Portfolio',status:'pending',feedback:'',revision:1,createdAt:'2026-10-27T00:00:00Z',submittedAt:'2026-10-27T00:00:00Z',updatedAt:'2026-10-27T00:00:00Z',reviewedAt:null});
+test('server submissions show an empty state and never fabricate demo records',async()=>{
+ submissionRows=[];const page=await mount('submissions-view','SubmissionsView');try{assert.match(page.node.textContent,/No submissions found/);assert.equal(page.node.querySelectorAll('.ins-demo-row').length,0);assert.doesNotMatch(page.node.textContent,/Load Local Demo/);}finally{await page.close();}
 });
-
-test("demo submissions filter by course/workshop/status and search fictional student/project names with clear empty states", async () => {
-  const page = await mount("submissions-view", "SubmissionsView", undefined, undefined, { href: "/instructor/submissions" });
-  try { await click(button(page.node, "Load Local Demo Records")); await value(page.node.querySelector('[aria-label="Filter submissions by course"]'), "html"); assert.equal(page.node.querySelectorAll('.ins-demo-row').length, 1); await value(page.node.querySelector('[aria-label="Filter submissions by workshop"]'), "project:portfolio"); await value(page.node.querySelector('[aria-label="Filter submissions by course"]'), "all"); assert.equal(page.node.querySelector('[aria-label="Filter submissions by workshop"]').value, "all"); await value(page.node.querySelector('[type="search"]'), "Demo learner 1"); assert.equal(page.node.querySelectorAll('.ins-demo-row').length, 1); await value(page.node.querySelector('[type="search"]'), "unmatched"); assert.match(page.node.textContent, /No matching demo submissions/); await value(page.node.querySelector('[type="search"]'), ""); await value(page.node.querySelector('[aria-label="Filter submissions by status"]'), "reviewed"); assert.equal(page.node.querySelectorAll('.ins-demo-row').length, 0); }
-  finally { await page.close(); }
+test('server submissions filter actual students and save final feedback with the expected revision',async()=>{
+ submissionRows=[submissionFixture()];reviewFailure=false;const page=await mount('submissions-view','SubmissionsView');try{
+ assert.equal(page.node.querySelectorAll('.ins-demo-row').length,1);await value(page.node.querySelector('input'),'unmatched');assert.equal(page.node.querySelectorAll('.ins-demo-row').length,0);await value(page.node.querySelector('input'),'Real learner');
+ await click(button(page.node,'Review'));await value(page.node.querySelector('dialog textarea'),'Useful instructor feedback');await value(page.node.querySelector('dialog select'),'reviewed');await click(button(page.node,'Save Review'));
+ assert.equal(submissionRows[0].feedback,'Useful instructor feedback');assert.equal(submissionRows[0].revision,2);assert.match(page.node.textContent,/Reviewed/);
+ }finally{await page.close();}
 });
-
-test("demo feedback/status save updates counts, survives refresh, and exposes no uploaded file or functional download", async () => {
-  let page = await mount("submissions-view", "SubmissionsView", undefined, undefined, { href: "/instructor/submissions" }), raw;
-  try { await click(button(page.node, "Load Local Demo Records")); await click(button(page.node, "Review Demo")); let dialog = page.node.querySelector('dialog'); assert.match(dialog.textContent, /FICTIONAL RECORD/); assert.equal(button(dialog, "Download unavailable").disabled, true); await value(dialog.querySelector('[aria-label="Review status"]'), "reviewed"); assert.equal(button(dialog, "Save Demo Review").disabled, true); await value(dialog.querySelector('[aria-label="Demo feedback"]'), "Useful feedback\nCheck responsive spacing."); await click(button(dialog, "Save Demo Review")); assert.match(dialog.textContent, /Nothing was delivered to a student/); raw = window.localStorage.getItem("decode-instructor-submissions-demo-v1"); assert.deepEqual([...page.node.querySelectorAll('.ins-demo-stats strong')].map(n => n.textContent), ["4", "3", "1", "0"]); await click(button(dialog, "Close Review")); }
-  finally { await page.close(); }
-  page = await mount("submissions-view", "SubmissionsView", undefined, undefined, { href: "/instructor/submissions", demoStored: raw, hydrate: true });
-  try { assert.equal(page.errors.length, 0); await value(page.node.querySelector('[aria-label="Filter submissions by status"]'), "reviewed"); await click(button(page.node, "Review Demo")); const dialog = page.node.querySelector('dialog'); assert.equal(dialog.querySelector('[aria-label="Demo feedback"]').value, "Useful feedback\nCheck responsive spacing."); assert.equal(dialog.querySelector('[aria-label="Review status"]').value, "reviewed"); await value(dialog.querySelector('[aria-label="Review status"]'), "pending"); await click(button(dialog, "Save Demo Review")); const dates = [...dialog.querySelectorAll('.ins-demo-dates>div')]; assert.match(dates[2].textContent, /Not reviewed/); assert.equal(window.localStorage.getItem("decode-instructor-preview-v1"), null); }
-  finally { await page.close(); }
-});
-
-test("new demo records can associate an instructor-created Workshop without uploading files or changing the catalog", async () => {
-  const local = fixture(), raw = JSON.stringify(local.state), page = await mount("submissions-view", "SubmissionsView", undefined, raw, { href: "/instructor/submissions" });
-  try { await click(button(page.node, "New Local Demo")); const dialog = page.node.querySelector('dialog'); await value(dialog.querySelector('[aria-label="Demo workshop"]'), local.activityId); await value(dialog.querySelector('[aria-label="Fictional student name"]'), "Demo learner from local course"); await value(dialog.querySelector('[aria-label="Demo project title"]'), "Local project example"); await submit(dialog); assert.equal(page.node.querySelectorAll('.ins-demo-row').length, 1); const record = JSON.parse(window.localStorage.getItem("decode-instructor-submissions-demo-v1")).records[0]; assert.equal(record.activityId, local.activityId); assert.equal(record.courseId, local.courseId); assert.equal(record.mode, "local-demo"); assert.equal(record.files, undefined); assert.equal(window.localStorage.getItem("decode-instructor-preview-v1"), raw); }
-  finally { await page.close(); }
-});
-
-test("demo review protects unsaved feedback on close/unload, reports quota failure inside dialog and detects external revisions", async () => {
-  const page = await mount("submissions-view", "SubmissionsView", undefined, undefined, { href: "/instructor/submissions" });
-  try { await click(button(page.node, "Load Local Demo Records")); await click(button(page.node, "Review Demo")); let dialog = page.node.querySelector('dialog'); await value(dialog.querySelector('[aria-label="Demo feedback"]'), "Keep my feedback"); const event = new window.Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); assert.equal(event.defaultPrevented, true); await click(button(dialog, "Close Review")); assert.ok(page.node.querySelector('dialog')); const proto = Object.getPrototypeOf(window.localStorage), set = proto.setItem; proto.setItem = () => { throw Error("Quota"); }; try { await click(button(dialog, "Save Demo Review")); assert.match(dialog.textContent, /Demo review was not saved/); assert.equal(dialog.querySelector('[aria-label="Demo feedback"]').value, "Keep my feedback"); } finally { proto.setItem = set; } const raw = JSON.parse(window.localStorage.getItem("decode-instructor-submissions-demo-v1")); raw.records[0].feedback = "Other tab feedback"; raw.records[0].revision++; window.localStorage.setItem("decode-instructor-submissions-demo-v1", JSON.stringify(raw)); await act(async () => window.dispatchEvent(new window.StorageEvent("storage", { key: "decode-instructor-submissions-demo-v1" }))); assert.equal(button(dialog, "Save Demo Review").disabled, true); await click(button(dialog, "Reload saved demo review")); const confirm = page.node.querySelectorAll('dialog')[1]; await click(button(confirm, "Cancel")); assert.equal(dialog.querySelector('[aria-label="Demo feedback"]').value, "Keep my feedback"); await click(button(dialog, "Reload saved demo review")); await click(button(page.node.querySelectorAll('dialog')[1], "Reload Review")); assert.equal(dialog.querySelector('[aria-label="Demo feedback"]').value, "Other tab feedback"); }
-  finally { await page.close(); }
-});
-
-test("demo review renders untrusted fictional titles/names/feedback safely and preserves orphan workshop review access", async () => {
-  const app = application(), demo = app.load("app/lib/instructor/submissions.ts"), created = demo.applyDemoSubmissionCommand({ version: 1, records: [] }, { type: "demo.create", workshop: { courseId: "missing-course", activityId: "deleted-workshop", courseTitle: "Unavailable", workshopTitle: "Deleted demo context" }, fictionalStudentName: '<img src=x onerror="window.hacked=1">', projectTitle: '<script>window.hacked=1</script>' }).state; const record = created.records[0]; record.feedback = '<img src=x onerror="window.hacked=1">'; const page = await mount("submissions-view", "SubmissionsView", undefined, undefined, { href: "/instructor/submissions", demoStored: created });
-  try { assert.equal(page.node.querySelector('img'), null); assert.equal(page.node.querySelector('script'), null); await click(button(page.node, "Review Demo")); const dialog = page.node.querySelector('dialog'); assert.match(dialog.textContent, /no longer in the local catalog/); assert.equal(dialog.querySelector('[aria-label="Demo feedback"]').value, record.feedback); assert.equal(window.hacked, undefined); }
-  finally { await page.close(); }
+test('review conflict retains entered feedback and untrusted names render as text',async()=>{
+ submissionRows=[{...submissionFixture(),studentName:'<img src=x onerror=alert(1)>'}];reviewFailure=true;const page=await mount('submissions-view','SubmissionsView');try{
+ assert.equal(page.node.querySelector('img'),null);await click(button(page.node,'Review'));await value(page.node.querySelector('dialog textarea'),'Keep my feedback');await click(button(page.node,'Save Review'));assert.match(page.node.textContent,/Review changed/);assert.equal(page.node.querySelector('dialog textarea').value,'Keep my feedback');assert.equal(submissionRows[0].revision,1);
+ }finally{reviewFailure=false;await page.close();}
 });
 
 test("Workshop and Submissions navigation preserve breadcrumbs, active state, responsive drawer and animated branding", async () => {

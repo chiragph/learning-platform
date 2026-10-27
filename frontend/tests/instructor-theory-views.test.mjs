@@ -20,8 +20,9 @@ function application() {
   function load(file) {
     file = path.resolve(file); if (cache.has(file)) return cache.get(file).exports;
     const compiled = { exports: {} }; cache.set(file, compiled);
-    const source = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+    const source = ts.transpileModule(fs.readFileSync(file.endsWith("/progress-provider.tsx") || file.endsWith("\\progress-provider.tsx") ? path.resolve("tests/fixtures/local-progress-provider.txt") : file, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
     function require(specifier) {
+      if (specifier === "../../lib/instructor/remote-repository") return { RemoteInstructorRepository: load("app/lib/instructor/repository.ts").LocalInstructorRepository };
       if (specifier.endsWith(".css")) return {};
       if (specifier === "next/link") return { __esModule: true, default: ({ href, children, ...props }) => React.createElement("a", { href, ...props }, children) };
       if (specifier === "next/navigation") return { useSearchParams: () => new URLSearchParams(window.location.search), useRouter: () => ({ push() {} }) };
@@ -163,11 +164,11 @@ test("Theory library lists seeded lessons once, filters course/module/title/stat
 test("editor imports the published lesson, saves an independent draft, and reopens after a provider refresh", async () => {
   let page = await mount("theory-editor", "TheoryEditor", { activityId: firstId }), saved;
   try {
-    assert.match(page.node.textContent, /separate local working draft/); assert.equal(page.node.querySelectorAll(".ins-theory-block").length, 4);
+    assert.match(page.node.textContent, /separate working draft/); assert.equal(page.node.querySelectorAll(".ins-theory-block").length, 4);
     assert.equal(button(page.node, "Save Draft").disabled, true); assert.match(page.node.textContent, /Not saved locally/);
     const catalog = page.app.load("app/lib/instructor/repository.ts").seedInstructorState().courses;
     await value(page.node.querySelector('[aria-label="Lesson title"]'), "New local explanation"); assert.match(page.node.textContent, /Unsaved changes/);
-    await click(button(page.node, "Save Draft")); assert.match(page.node.textContent, /Working draft saved in this browser/); assert.equal(button(page.node, "Save Draft").disabled, true);
+    await click(button(page.node, "Save Draft")); assert.match(page.node.textContent, /Working draft saved to your account/); assert.equal(button(page.node, "Save Draft").disabled, true);
     saved = window.localStorage.getItem("decode-instructor-preview-v1"); assert.deepEqual(JSON.parse(saved).courses, JSON.parse(JSON.stringify(catalog)));
     const title = page.node.querySelector('[aria-label="Lesson title"]'); await value(title, "Another edit"); await value(title, "New local explanation"); assert.equal(button(page.node, "Save Draft").disabled, true);
   } finally { await page.close(); }

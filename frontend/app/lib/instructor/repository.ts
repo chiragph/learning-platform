@@ -1,9 +1,9 @@
 import { curriculumRepository } from "../student/curriculum-repository";
 import { isIsoTimestamp } from "./dates";
-import { initialTheoryContent, sameTheoryContent, validTheoryContent, validTheoryDraft } from "./theory";
-import { copyQuizQuestion, initialQuizContent, sameQuizContent, validQuizContent, validQuizDraft } from "./quiz";
-import { initialLabContent, labContentOnly, sameLabContent, validLabContent, validLabDraft } from "./lab";
-import { copyWorkshopContent, initialWorkshopContent, sameWorkshopContent, validWorkshopContent, validWorkshopDraft, workshopContentOnly } from "./workshop";
+import { initialTheoryContent, theoryReadiness, sameTheoryContent, validTheoryContent, validTheoryDraft } from "./theory";
+import { copyQuizQuestion, initialQuizContent, quizReadiness, sameQuizContent, validQuizContent, validQuizDraft } from "./quiz";
+import { initialLabContent, labReadiness, labContentOnly, sameLabContent, validLabContent, validLabDraft } from "./lab";
+import { copyWorkshopContent, initialWorkshopContent, workshopReadiness, sameWorkshopContent, validWorkshopContent, validWorkshopDraft, workshopContentOnly } from "./workshop";
 import { decodeDraftStore } from "./content-storage";
 import type { CourseFields, InstructorActivity, InstructorCommand, InstructorCourse, InstructorModule, InstructorRepository, InstructorState, RepositorySnapshot } from "./types";
 
@@ -29,11 +29,19 @@ export function courseCounts(course: InstructorCourse) {
   const modules = course.modules.filter(m => !m.archived);
   return { modules: modules.length, activities: modules.flatMap(m => m.activities).filter(a => !a.archived).length };
 }
-export function publicationIssue(course: InstructorCourse): string | null {
+export function publicationIssue(course: InstructorCourse, state?: InstructorState): string | null {
   if (course.archived) return "Restore this course before publishing.";
   const modules = course.modules.filter(m => !m.archived);
   if (!modules.length || modules.some(m => !m.activities.some(a => !a.archived))) return "Add curriculum to every active module before publishing.";
-  if (modules.some(m => m.activities.some(a => !a.archived && (a.status === "draft" || !a.reference)))) return "Draft activities need complete content and final publication review in Stage 5E.";
+  for (const activity of modules.flatMap(m => m.activities).filter(a => !a.archived)) {
+    if (!state) { if (!activity.reference && activity.status === "draft") return "Save complete activity content before publishing."; continue; }
+    if (activity.source === "seed" && !state[activity.type]?.drafts[activity.id]) continue;
+    const ready = activity.type === "theory" ? theoryReadiness(state.theory?.drafts[activity.id] ?? initialTheoryContent(activity).content).ready
+      : activity.type === "quiz" ? quizReadiness(state.quiz?.drafts[activity.id] ?? initialQuizContent(activity).content).ready
+      : activity.type === "lab" ? labReadiness(state.lab?.drafts[activity.id] ?? initialLabContent(activity).content).ready
+      : workshopReadiness(state.workshop?.drafts[activity.id] ?? initialWorkshopContent(activity).content).ready;
+    if (!ready) return "Complete the content readiness checks for " + activity.title + ".";
+  }
   return null;
 }
 const seededCourses = curriculumRepository.getPath().courses;
@@ -269,7 +277,7 @@ export function applyInstructorCommand(state: InstructorState, command: Instruct
       }
       case "course.status": {
         if (!["draft", "published"].includes(command.status)) throw new Error("Invalid publication status.");
-        const issue = command.status === "published" && publicationIssue(course); if (issue) throw new Error(issue);
+        const issue = command.status === "published" && publicationIssue(course, next); if (issue) throw new Error(issue);
         if (command.status === course.status) return { state, id: course.id };
         course.status = command.status;
         if (command.status === "published") {
@@ -279,7 +287,7 @@ export function applyInstructorCommand(state: InstructorState, command: Instruct
             m.status = "published"; m.hasBeenPublished = true;
             // These activities were already published. Republishing their
             // container must not invent their historical publication dates.
-            m.activities.filter(a => !a.archived).forEach(a => { a.hasBeenPublished = true; });
+            m.activities.filter(a => !a.archived).forEach(a => { if (a.status !== "published") { a.status = "published"; a.publishedAt = now; } a.hasBeenPublished = true; });
           });
         }
         title = `${command.status === "published" ? "Published locally" : "Unpublished locally"}: ${course.title}`; break;
@@ -402,7 +410,7 @@ function validState(value: unknown): value is InstructorState {
       if (!c.modules.some((entry: { id: string }) => entry.id === m.id)) return false;
       for (const a of m.activities) {
         const saved = c.modules.flatMap((m: { activities: unknown[] }) => m.activities).find((v: { id: string }) => v.id === a.id);
-        if (!saved || saved.type !== a.type || JSON.stringify(saved.reference) !== JSON.stringify(a.reference)) return false;
+        if (!saved || saved.type !== a.type || (saved.reference?.kind !== a.reference?.kind || saved.reference?.id !== a.reference?.id)) return false;
       }
     }
   }

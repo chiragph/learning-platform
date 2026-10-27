@@ -74,6 +74,7 @@ function loadModule(filename, mocks, cache = new Map()) {
   const source = fs.readFileSync(filename, "utf8");
   const compiled = filename.endsWith(".js") ? source : ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
   function require(specifier) {
+      if (specifier === "../../lib/instructor/remote-repository") return { RemoteInstructorRepository: load("app/lib/instructor/repository.ts").LocalInstructorRepository };
     if (Object.hasOwn(mocks, specifier)) return mocks[specifier];
     if (specifier.endsWith(".css")) return {};
     if (!specifier.startsWith(".") && !specifier.startsWith("@/")) return dependency(specifier);

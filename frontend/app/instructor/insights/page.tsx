@@ -1,4 +1,3 @@
-import Link from "next/link";
-import { Icon, PageHeading } from "../../components/instructor/ui";
-export const metadata = { title: "Student Insights" };
-export default function Page() { return <><PageHeading title="Student Insights" description="A future view into how students learn with your courses." /><section className="ins-insights-placeholder"><span className="ins-integration-icon"><Icon name="progress" /></span><span className="ins-integration-badge">Awaiting backend integration</span><h2>Student analytics are unavailable.</h2><p>Enrollment, learning progress, completion, and student activity need authenticated instructor APIs. No student analytics are collected by this preview.</p><Link className="ins-button secondary" href="/instructor/courses">Manage your courses <Icon name="arrow" /></Link></section></>; }
+import { InsightsView } from '../../components/instructor/insights-view';
+export const metadata={title:'Student Insights'};
+export default function Page(){return <InsightsView/>;}

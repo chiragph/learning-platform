@@ -44,7 +44,7 @@ export const labs: Record<LabId, LabDefinition> = {
     requirement("repeat", "Another click appends another goal", "Each click must add one new item and preserve the existing goals."), runtime,
   ] },
 };
-export function findLab(id: string): LabDefinition | undefined { return labIds.includes(id as LabId) ? labs[id as LabId] : undefined; }
+export function findLab(id: string): LabDefinition | undefined { return Object.hasOwn(labs, id) ? labs[id as LabId] : undefined; }
 export function validLabResults(lab: LabDefinition, value: unknown): value is LabRequirementResult[] {
   return Array.isArray(value) && value.length === lab.requirements.length && lab.requirements.every((requirement, index) => {
     const result = value[index]; return result && typeof result === "object" && result.id === requirement.id && typeof result.passed === "boolean";

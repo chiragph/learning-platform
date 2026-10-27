@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { activityComplete, curricula, displayOrder } from "@/app/lib/student/curriculum";
-import { findCourse } from "@/app/lib/student/courses";
+import { courses } from "@/app/lib/student/courses";
 import type { Lesson, Progress } from "@/app/lib/student/types";
 import { StudentIcon, SubjectMark } from "./student-icon";
 
 export function LessonOutline({ lesson, progress }: { lesson: Lesson; progress: Progress }) {
-  const course = findCourse(lesson.language)!;
+  const course = courses.find(c => c.lessons.some(l => l.id === lesson.id))!;
   const curriculum = curricula[course.id];
   return <nav aria-label="Course activities" className="student-lesson-outline">
     <div className="student-lesson-outline-heading"><SubjectMark subject={course.id} small /><div><span>YOUR COURSE</span><Link href={`/courses/${course.id}`}>{course.title}</Link></div></div>

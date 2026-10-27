@@ -24,8 +24,9 @@ function application() {
     file = path.resolve(file);
     if (cache.has(file)) return cache.get(file).exports;
     const compiled = { exports: {} }; cache.set(file, compiled);
-    const source = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
+    const source = ts.transpileModule(fs.readFileSync(file.endsWith("/progress-provider.tsx") || file.endsWith("\\progress-provider.tsx") ? path.resolve("tests/fixtures/local-progress-provider.txt") : file, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
     function require(specifier) {
+      if (specifier === "../../lib/instructor/remote-repository") return { RemoteInstructorRepository: load("app/lib/instructor/repository.ts").LocalInstructorRepository };
       if (specifier.endsWith(".css")) return {};
       if (specifier === "next/link") return { __esModule: true, default: ({ href, children, ...props }) => React.createElement("a", { href, ...props }, children) };
       if (specifier === "next/navigation") return { usePathname: () => window.location.pathname };
@@ -118,11 +119,10 @@ test("quiz storage failure preserves visible answers and retries the same submis
   try {
     window.Storage.prototype.setItem = () => { throw new Error("quota"); };
     await answerAll(target, questions); await click(target, "Review & submit"); await click(target, "Submit quiz");
-    assert.match(target.container.textContent, /You scored 100%/); assert.equal(app.progress.quizzes.html, undefined);
-    const retry = [...target.container.querySelectorAll("button")].find(button => button.textContent.startsWith("Retry quiz")); assert.equal(retry.disabled, true);
+    assert.match(target.container.textContent, /Unable to submit|Unable to save attempt/); assert.equal(app.progress.quizzes.html, undefined);
+    assert.ok(target.container.querySelector("fieldset"));
     window.Storage.prototype.setItem = original;
-    const save = [...target.container.querySelectorAll("button")].find(button => button.textContent === "Retry saving attempt");
-    await act(() => { save.click(); save.click(); });
+    await click(target, "Review & submit"); await click(target, "Submit quiz");
     assert.equal(app.progress.quizzes.html.attempts, 1); assert.equal(app.progress.quizzes.html.best, 100);
   } finally { window.Storage.prototype.setItem = original; await target.dispose(); }
 });

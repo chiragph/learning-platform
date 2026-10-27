@@ -1,9 +1,12 @@
+import { json } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { allowedFrontendOrigins } from './auth/frontend-origins';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  app.use(json({ limit: '2mb' }));
 
   // Enable graceful shutdown
   app.enableShutdownHooks();

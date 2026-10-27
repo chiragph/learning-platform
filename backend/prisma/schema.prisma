@@ -25,6 +25,11 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   sessions     Session[]
+  learningWorkspace InstructorWorkspace?
+  learningProgress LearningProgress?
+  ownedCourses LearningCourse[]
+  quizAttempts LearningQuizAttempt[]
+  projectSubmissions LearningSubmission[]
 
   @@map("users")
 }
@@ -40,4 +45,85 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+// Editor documents and immutable publication snapshots retain the existing typed
+// content contract; identities, ownership, versions and student records are relational.
+model InstructorWorkspace {
+  ownerId String @id @db.Uuid
+  revision Int @default(0)
+  document Json
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  @@map("instructor_workspaces")
+}
+model LearningCourse {
+  id String @id
+  ownerId String @db.Uuid
+  liveVersionId String? @unique @db.Uuid
+  archived Boolean @default(false)
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  versions LearningPublication[] @relation("CourseVersions")
+  liveVersion LearningPublication? @relation("LiveVersion", fields: [liveVersionId], references: [id], onDelete: Restrict)
+  @@index([ownerId])
+  @@map("learning_courses")
+}
+model LearningPublication {
+  id String @id @default(uuid()) @db.Uuid
+  courseId String
+  document Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  course LearningCourse @relation("CourseVersions", fields: [courseId], references: [id], onDelete: Restrict)
+  liveFor LearningCourse? @relation("LiveVersion")
+  attempts LearningQuizAttempt[]
+  submissions LearningSubmission[]
+  @@index([courseId])
+  @@map("learning_publications")
+}
+model LearningProgress {
+  studentId String @id @db.Uuid
+  revision Int @default(0)
+  document Json
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  student User @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  @@map("learning_progress")
+}
+model LearningQuizAttempt {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @db.Uuid
+  publicationId String @db.Uuid
+  activityId String
+  requestKey String
+  payloadHash String
+  result Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  student User @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  publication LearningPublication @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  @@unique([studentId, requestKey])
+  @@index([studentId, activityId])
+  @@map("learning_quiz_attempts")
+}
+
+model LearningSubmission {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @db.Uuid
+  publicationId String @db.Uuid
+  activityId String
+  referenceId String
+  courseId String
+  courseTitle String
+  workshopTitle String
+  code Json
+  status String @default("pending")
+  feedback String @default("")
+  publishedFeedback String @default("")
+  revision Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  reviewedAt DateTime? @db.Timestamptz(3)
+  student User @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  publication LearningPublication @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  @@index([studentId, referenceId])
+  @@index([courseId, status])
+  @@map("learning_submissions")
 }

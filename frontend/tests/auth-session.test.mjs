@@ -22,20 +22,22 @@ const plain = value => JSON.parse(JSON.stringify(value));
 // Only the backend HTTP boundary and Next router/cookies are substituted.
 function application(withLab = false) {
   const calls = [], redirects = [], cache = new Map(), labResults = [];
+  const scopedCookies = {};
   let backendUser = alice, cookie = "a".repeat(64), refreshes = 0, snapshot, identity;
-  let transport = async url => url.endsWith("/logout") ? Response.json({ message: "Signed out successfully." }) : Response.json({ user: backendUser });
+  let transport = async url => url.includes("/logout") ? Response.json({ message: "Signed out successfully." }) : Response.json({ user: backendUser });
   const router = { replace: href => redirects.push(href), refresh: () => refreshes++ };
   async function fetch(url, options = {}) { calls.push({ url, options }); return transport(url, options); }
   function load(file) {
     file = path.resolve(file);
     if (cache.has(file)) return cache.get(file).exports;
     const compiled = { exports: {} }; cache.set(file, compiled);
-    const source = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
+    const source = ts.transpileModule(fs.readFileSync(file.endsWith("/progress-provider.tsx") || file.endsWith("\\progress-provider.tsx") ? path.resolve("tests/fixtures/local-progress-provider.txt") : file, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
     function require(specifier) {
+      if (specifier === "../../lib/instructor/remote-repository") return { RemoteInstructorRepository: load("app/lib/instructor/repository.ts").LocalInstructorRepository };
       if (specifier === "server-only" || specifier.endsWith(".css")) return {};
       if (specifier === "./animated-owl") return { AnimatedOwl: () => null };
       if (specifier === "next/link") return { __esModule: true, default: ({ href, children, ...props }) => React.createElement("a", { href, ...props }, children) };
-      if (specifier === "next/headers") return { cookies: async () => ({ get: key => { assert.equal(key, "decode_session"); return cookie === undefined ? undefined : { value: cookie }; } }) };
+      if (specifier === "next/headers") return { cookies: async () => ({ get: key => { const value = key === "decode_session" ? cookie : scopedCookies[key]; return value === undefined ? undefined : { value }; } }) };
       if (specifier === "next/navigation") return { useRouter: () => router, usePathname: () => window.location.pathname, redirect: href => { throw Object.assign(new Error("Redirect " + href), { redirect: href }); } };
       if (!specifier.startsWith(".") && !specifier.startsWith("@/")) return dependency(specifier);
       const base = specifier.startsWith("@/") ? path.resolve(specifier.slice(2)) : path.resolve(path.dirname(file), specifier);
@@ -61,7 +63,7 @@ function application(withLab = false) {
   return {
     load, calls, redirects, progress, providers, labResults,
     get refreshes() { return refreshes; }, get snapshot() { return snapshot; }, get identity() { return identity; },
-    setCookie: next => { cookie = next; }, setUser: next => { backendUser = next; }, setTransport: next => { transport = next; },
+    setCookie: next => { cookie = next; }, setRoleCookie: (role, value) => { scopedCookies["decode_" + role + "_session"] = value; }, setUser: next => { backendUser = next; }, setTransport: next => { transport = next; },
     tree: (mode = "visible") => React.createElement(StrictMode, null, React.createElement(Activity, { mode }, React.createElement(providers.StudentProvider, { user: alice }, React.createElement(Scope)))),
   };
 }
@@ -89,12 +91,47 @@ async function fill(target, mode) {
 }
 const workspace = target => target.container.querySelector('[data-testid="workspace"]');
 
+test("server guards prefer independent role cookies over the last login alias", async () => {
+  const app = application();
+  app.setCookie('c'.repeat(64));
+  app.setRoleCookie('student', 'a'.repeat(64));
+  app.setRoleCookie('instructor', 'b'.repeat(64));
+  app.setTransport(async (url, options) => {
+    const student = url.endsWith('scope=student');
+    assert.equal(options.headers.Cookie, student ? 'decode_student_session=' + 'a'.repeat(64) : 'decode_instructor_session=' + 'b'.repeat(64));
+    return Response.json({ user: student ? alice : instructor });
+  });
+  const { verifyStudentSession } = app.load('app/components/auth/server-student-session.ts');
+  const { verifyInstructorSession } = app.load('app/components/auth/server-instructor-session.ts');
+  assert.equal((await verifyStudentSession()).user.id, alice.id);
+  assert.equal((await verifyInstructorSession()).user.id, instructor.id);
+  app.setRoleCookie('student', 'invalid');
+  assert.equal((await verifyStudentSession()).status, 'anonymous');
+  assert.equal((await verifyInstructorSession()).user.id, instructor.id);
+});
+
+test("both client workspaces survive cross-tab sign-in notifications", async () => {
+  const app = application();
+  app.setTransport(async url => Response.json({ user: url.endsWith('scope=instructor') ? instructor : alice }));
+  const { InstructorSessionProvider } = app.load('app/components/instructor/instructor-session-provider.tsx');
+  const target = await mount(() => React.createElement(React.Fragment, null, app.tree(), React.createElement(InstructorSessionProvider, { user: instructor }, React.createElement('p', { id: 'instructor-work' }, 'Instructor work'))));
+  try {
+    for (const event of [new window.StorageEvent('storage', { key: 'decode-auth-change-v1' }), new window.Event('focus')]) {
+      await act(async () => window.dispatchEvent(event));
+      assert.equal(workspace(target).dataset.user, alice.id);
+      assert.equal(target.container.querySelector('[data-instructor-session-workspace]').hidden, false);
+      assert.ok(target.container.querySelector('#instructor-work'));
+      assert.deepEqual(app.redirects, []);
+    }
+  } finally { await target.dispose(); }
+});
+
 test("server verification forwards only the real session cookie, returns public identity, and never caches users", async () => {
   const app = application(), { verifyStudentSession } = app.load("app/components/auth/server-student-session.ts");
   app.setTransport(async () => Response.json({ user: { ...alice, passwordHash: "must not reach client", token: "must not reach client" } }));
   const session = await verifyStudentSession();
   assert.deepEqual(plain(session), { status: "authenticated", user: alice });
-  assert.equal(app.calls[0].url, "http://auth-backend.test:4000/api/auth/me");
+  assert.equal(app.calls[0].url, "http://auth-backend.test:4000/api/auth/me?scope=student");
   assert.deepEqual(plain(app.calls[0].options.headers), { Cookie: "decode_session=" + "a".repeat(64) });
   assert.equal(app.calls[0].options.cache, "no-store"); assert.ok(app.calls[0].options.signal);
   app.setUser(bob); app.setTransport(async () => Response.json({ user: bob }));
@@ -276,7 +313,7 @@ test("authenticated UUIDs scope local records; old demo progress, drafts, avatar
     app.setUser(alice); await act(async () => window.dispatchEvent(new window.Event("pageshow")));
     assert.equal(app.snapshot.progress.drafts["lesson-html-introduction"].html, "Alice saved code");
     for (const [key, value] of Object.entries(oldRecords)) assert.equal(window.localStorage.getItem(key), value);
-    for (const call of app.calls) { assert.equal(call.url, "/api/auth/me"); assert.equal(call.options.credentials, "same-origin"); assert.equal(call.options.cache, "no-store"); }
+    for (const call of app.calls) { assert.equal(call.url, "/api/auth/me?scope=student"); assert.equal(call.options.credentials, "same-origin"); assert.equal(call.options.cache, "no-store"); }
     assert.equal(target.errors.length, 0);
   } finally { await target.dispose(); }
 });
@@ -372,7 +409,7 @@ test("logout uses main's JSON endpoint once, preserves local records, and report
     let finish; app.setTransport(() => new Promise(resolve => { finish = resolve; }));
     const buttons = [...target.container.querySelectorAll("button")].filter(button => button.textContent === "Log out");
     await act(() => { buttons[0].click(); buttons[1].click(); });
-    const posts = app.calls.filter(call => call.url === "/api/auth/logout"); assert.equal(posts.length, 1);
+    const posts = app.calls.filter(call => call.url === "/api/auth/logout?scope=student"); assert.equal(posts.length, 1);
     assert.equal(posts[0].options.method, "POST"); assert.equal(posts[0].options.body, "{}");
     assert.equal(posts[0].options.credentials, "same-origin"); assert.equal(posts[0].options.headers["Content-Type"], "application/json");
     await act(async () => finish(Response.json({ message: "Service unavailable" }, { status: 503 })));

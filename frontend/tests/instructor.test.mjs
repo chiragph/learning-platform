@@ -13,6 +13,7 @@ function loader(environment = "development", overrides = {}) {
     const compiled = { exports: {} }; cache.set(filename, compiled);
     const source = ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     function require(specifier) {
+      if (specifier === "../../lib/instructor/remote-repository") return { RemoteInstructorRepository: load("app/lib/instructor/repository.ts").LocalInstructorRepository };
       if (specifier in overrides) return overrides[specifier];
       if (specifier.endsWith(".css")) return {};
       const base = path.resolve(path.dirname(filename), specifier);
@@ -72,7 +73,7 @@ test("course editing preserves IDs and publication checks never publish unfinish
   app.run({ type: "course.status", courseId: "html", status: "draft" }); assert.equal(app.state.courses[0].status, "draft");
   app.run({ type: "course.create", id: "empty", fields: data }); assert.throws(() => app.run({ type: "course.status", courseId: "empty", status: "published" }), /curriculum/);
   app.run({ type: "activity.create", courseId: "html", moduleId: "html-first-page", activityType: "lab", title: "New lab", description: "Practice" });
-  assert.throws(() => app.run({ type: "course.status", courseId: "html", status: "published" }), /Stage 5E/);
+  assert.throws(() => app.run({ type: "course.status", courseId: "html", status: "published" }), /content/);
 });
 
 test("duplication allocates new IDs and archive/restore keeps the original curriculum intact", () => {
@@ -409,7 +410,7 @@ test("published course duplication resets the entire hierarchy and preserves cop
     });
     assert.equal(app.repo.moduleDeletionIssue(copy,topic),null);
   });
-  assert.throws(() => app.run({ type:"course.status",courseId:id,status:"published" },clock[3]),/Stage 5E/);
+  assert.throws(() => app.run({ type:"course.status",courseId:id,status:"published" },clock[3]),/content/);
   app.run({ type:"course.delete",courseId:id },clock[4]); assert.equal(app.state.courses.length,3); assert.equal(JSON.stringify(app.state.courses),before);
 });
 

@@ -22,6 +22,6 @@ export async function instructorSessionResponse(response: Response): Promise<Ins
 
 export async function loadInstructorSession(signal: AbortSignal): Promise<InstructorSession> {
   try {
-    return await instructorSessionResponse(await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store", signal }));
+    return await instructorSessionResponse(await fetch("/api/auth/me?scope=instructor", { credentials: "same-origin", cache: "no-store", signal }));
   } catch { return { status: "unavailable" }; }
 }

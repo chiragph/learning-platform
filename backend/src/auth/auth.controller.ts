@@ -10,21 +10,19 @@ import {
   Req,
   Res,
   UnsupportedMediaTypeException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import type { CookieOptions, Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { frontendOriginAllowed } from './frontend-origins.js';
 
-const cookieName = 'decode_session';
-
-function readToken(request: Request) {
-  const cookie = request.headers.cookie
-    ?.split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${cookieName}=`));
-  const token = cookie?.slice(cookieName.length + 1);
-  return token && /^[a-f0-9]{64}$/.test(token) ? token : undefined;
-}
+import {
+  cookieToken,
+  legacySessionCookie as cookieName,
+  readSessionToken,
+  roleSessionCookies,
+  sessionScope,
+} from './session-cookies.js';
 
 function cookieOptions(): CookieOptions {
   return {
@@ -57,10 +55,18 @@ export class AuthController {
     response: Response,
     result: Awaited<ReturnType<AuthService['login']>>,
   ) {
-    response.cookie(cookieName, result.token, {
+    const options = {
       ...cookieOptions(),
       ...(result.remember ? { maxAge: result.maxAge } : {}),
-    });
+    };
+    response.cookie(cookieName, result.token, options);
+    response.cookie(
+      roleSessionCookies[
+        result.user.role === 'INSTRUCTOR' ? 'instructor' : 'student'
+      ],
+      result.token,
+      options,
+    );
     return { user: result.user };
   }
 
@@ -90,7 +96,7 @@ export class AuthController {
   @Get('me')
   @Header('Cache-Control', 'no-store')
   me(@Req() request: Request) {
-    return this.auth.me(readToken(request));
+    return this.auth.me(readSessionToken(request, sessionScope(request)));
   }
 
   @Post('logout')
@@ -101,8 +107,29 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     this.checkRequest(request);
-    const result = await this.auth.logout(readToken(request));
-    response.clearCookie(cookieName, cookieOptions());
+    const scope = sessionScope(request);
+    let token = readSessionToken(request, scope);
+    if (scope && token) {
+      try {
+        const { user } = await this.auth.me(token);
+        const actualScope =
+          user.role === 'INSTRUCTOR' ? 'instructor' : 'student';
+        if (actualScope !== scope) token = undefined;
+      } catch (error) {
+        if (!(error instanceof UnauthorizedException)) throw error;
+        token = undefined;
+      }
+    }
+    const result = await this.auth.logout(token);
+    const clear = new Set<string>(
+      scope ? [roleSessionCookies[scope]] : [cookieName],
+    );
+    // Clear aliases of this token without touching the other role's session.
+    if (token)
+      for (const name of [cookieName, ...Object.values(roleSessionCookies)]) {
+        if (cookieToken(request, name) === token) clear.add(name);
+      }
+    for (const name of clear) response.clearCookie(name, cookieOptions());
     return result;
   }
 }
