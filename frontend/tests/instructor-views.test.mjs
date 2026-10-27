@@ -22,6 +22,7 @@ function application({ pathname = () => window.location.pathname } = {}) {
     const compiled = { exports:{} }; cache.set(file,compiled);
     const source = ts.transpileModule(fs.readFileSync(file,"utf8"), { compilerOptions:{ jsx:ts.JsxEmit.ReactJSX, module:ts.ModuleKind.CommonJS, target:ts.ScriptTarget.ES2022, esModuleInterop:true } }).outputText;
     function require(specifier) {
+      if (specifier === "../../lib/instructor/remote-repository") return { RemoteInstructorRepository: load("app/lib/instructor/repository.ts").LocalInstructorRepository };
       if (specifier.endsWith(".css")) return {};
       if (specifier === "next/link") return { __esModule:true, default:({ href,children,...props }) => React.createElement("a",{ href,...props },children) };
       if (specifier === "next/navigation") return { usePathname:pathname, useSearchParams:() => new URLSearchParams(window.location.search), useRouter:() => ({ push() {} }) };
@@ -63,7 +64,7 @@ function deletionFixture() {
 test("server loading state renders the child route for Next segment validation while hiding seed content", () => {
   const app = application(), View = app.load("app/components/instructor/courses-view.tsx").CoursesView;
   const markup = JSDOM.fragment(renderToStaticMarkup(app.tree(View)));
-  assert.match(markup.querySelector('[role="status"]').textContent,/Opening your local/);
+  assert.match(markup.querySelector('[role="status"]').textContent,/Opening your/);
   assert.equal(markup.querySelectorAll('[hidden] .ins-course-card').length,3);
   assert.ok([...markup.querySelectorAll('[hidden] button')].filter(b => b.textContent.includes("Create Course")).every(b => b.disabled));
 });
@@ -90,10 +91,10 @@ test("course UI creates a validated draft, searches, prevents duplicates and per
 test("course publication and archiving require confirmation; cancellation leaves content intact", async () => {
   const page = await mount("courses-view","CoursesView");
   try {
-    let menu = await details(page.node,"Actions for HTML"); await click(button(menu,"Unpublish locally")); assert.ok(page.node.querySelector("dialog"));
+    let menu = await details(page.node,"Actions for HTML"); await click(button(menu,"Unpublish course")); assert.ok(page.node.querySelector("dialog"));
     assert.equal(document.activeElement.textContent,"Cancel"); await click(button(page.node.querySelector("dialog"),"Cancel")); assert.equal(page.node.querySelectorAll(".ins-status.published").length,3);
-    menu = await details(page.node,"Actions for HTML"); await click(button(menu,"Unpublish locally")); await click(button(page.node.querySelector("dialog"),"Unpublish locally")); assert.equal(page.node.querySelectorAll(".ins-status.draft").length,1);
-    menu = await details(page.node,"Actions for HTML"); await click(button(menu,"Publish locally")); await click(button(page.node.querySelector("dialog"),"Publish locally")); assert.equal(page.node.querySelectorAll(".ins-status.published").length,3);
+    menu = await details(page.node,"Actions for HTML"); await click(button(menu,"Unpublish course")); await click(button(page.node.querySelector("dialog"),"Unpublish course")); assert.equal(page.node.querySelectorAll(".ins-status.draft").length,1);
+    menu = await details(page.node,"Actions for HTML"); await click(button(menu,"Publish course")); await click(button(page.node.querySelector("dialog"),"Publish course")); assert.equal(page.node.querySelectorAll(".ins-status.published").length,3);
     menu = await details(page.node,"Actions for HTML"); await click(button(menu,"Archive course")); await click(button(page.node.querySelector("dialog"),"Archive course")); assert.equal(page.node.querySelectorAll(".ins-course-card").length,2);
     await value(page.node.querySelector('[aria-label="Filter courses by status"]'),"archived"); menu = await details(page.node,"Actions for HTML"); await click(button(menu,"Restore course")); await click(button(page.node.querySelector("dialog"),"Restore course"));
     await value(page.node.querySelector('[aria-label="Filter courses by status"]'),"active"); assert.equal(page.node.querySelectorAll(".ins-course-card").length,3);
@@ -121,7 +122,7 @@ test("curriculum UI adds a module and typed activity, reorders, archives and res
 
 test("overview derives counts and history; content pages filter real records and link to curriculum", async () => {
   let page = await mount("overview-view","OverviewView");
-  try { assert.deepEqual([...page.node.querySelectorAll(".ins-stats strong")].map(n => n.textContent),["3","3","0","38"]); assert.match(page.node.textContent,/No local changes yet/); assert.match(page.node.textContent,/unavailable/); }
+  try { assert.deepEqual([...page.node.querySelectorAll(".ins-stats strong")].map(n => n.textContent),["3","3","0","38"]); assert.match(page.node.textContent,/No local changes yet/); assert.match(page.node.textContent,/Loading student learning records/); }
   finally { await page.close(); }
   for (const [type,count] of [["theory",25],["quiz",3],["lab",6],["workshop",4]]) {
     page = await mount("content-view","ContentView",{ type });
@@ -308,7 +309,7 @@ test("published course duplicate remains a deletable draft across refresh and ne
   let page = await mount("courses-view","CoursesView"), saved, copyId;
   try {
     const menu = await details(page.node,"Actions for HTML"); await click(button(menu,"Duplicate course"));
-    const copyMenu = await details(page.node,"Actions for HTML (copy)"); assert.equal(button(copyMenu,"Delete course").disabled,false); assert.equal(button(copyMenu,"Publish locally").disabled,true);
+    const copyMenu = await details(page.node,"Actions for HTML (copy)"); assert.equal(button(copyMenu,"Delete course").disabled,false); assert.equal(button(copyMenu,"Publish course").disabled,true);
     const card = copyMenu.closest(".ins-course-card"); assert.equal(card.querySelector(".ins-status").textContent,"Draft");
     saved = JSON.parse(window.localStorage.getItem("decode-instructor-preview-v1")); const copy = saved.courses.at(-1); copyId = copy.id;
     assert.equal(copy.status,"draft"); assert.equal(copy.hasBeenPublished,false); assert.equal(copy.publishedAt,null); assert.ok(copy.modules.every(m => m.status === "draft" && !m.hasBeenPublished && m.activities.every(a => a.status === "draft" && !a.hasBeenPublished && a.publishedAt === null && !a.reference)));

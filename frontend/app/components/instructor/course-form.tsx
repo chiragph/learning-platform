@@ -12,7 +12,7 @@ export function CourseDetails({ course, onClose }: { course: InstructorCourse; o
 export function CourseForm({ course, onClose }: { course?: InstructorCourse; onClose: () => void }) {
   const { state, execute, writable, error } = useInstructor(), formId = useId();
   const [title, setTitle] = useState(course?.title ?? ""), [id, setId] = useState(course?.id ?? ""), [customId, setCustomId] = useState(!!course), [validation, setValidation] = useState("");
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setValidation("");
     if (!course && state.courses.some(c => c.id === id)) { setValidation("This course identifier is already in use, including archived courses."); return; }
     const data = new FormData(event.currentTarget), fields: CourseFields = {
@@ -20,10 +20,10 @@ export function CourseForm({ course, onClose }: { course?: InstructorCourse; onC
       duration: String(data.get("duration")).trim(), objectives: String(data.get("objectives")).split("\n").map(x => x.trim()).filter(Boolean), color: data.get("color") as CourseColor, icon: data.get("icon") as CourseIcon,
     };
     if (!fields.objectives.length) { setValidation("Add at least one learning objective."); return; }
-    const result = execute(course ? { type: "course.update", courseId: course.id, fields } : { type: "course.create", id, fields });
+    const result = await execute(course ? { type: "course.update", courseId: course.id, fields } : { type: "course.create", id, fields });
     if (result) onClose();
   }
-  return <Modal title={course ? "Edit course" : "Create a course"} onClose={onClose}><p className="ins-dialog-copy">{course ? "Update the course overview. Its identifier remains stable; edits return this local course to Draft." : "Start with the essentials. Your new course will be saved as a local draft."}</p>
+  return <Modal title={course ? "Edit course" : "Create a course"} onClose={onClose}><p className="ins-dialog-copy">{course ? "Update the course overview. Its identifier remains stable; edits return this course to Draft." : "Start with the essentials. Your new course will be saved as a draft."}</p>
     {course && <TimestampMetadata record={course} publication />}
     <form onSubmit={submit} className="ins-form"><label htmlFor={`${formId}-title`}>Course title <span>*</span></label><input data-autofocus id={`${formId}-title`} name="title" required maxLength={100} placeholder="e.g. Accessible web interfaces" value={title} onChange={e => { setTitle(e.target.value); if (!customId) setId(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80)); }} />
       <label htmlFor={`${formId}-id`}>Stable course identifier <span>*</span></label><input id={`${formId}-id`} name="id" required maxLength={80} pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*" readOnly={!!course} value={id} onChange={e => { setCustomId(true); setId(e.target.value); }} aria-describedby={`${formId}-id-help`} /><small id={`${formId}-id-help`}>Lowercase letters, numbers, and hyphens. This identifier cannot change after creation.</small>

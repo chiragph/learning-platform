@@ -30,6 +30,6 @@ export async function studentSessionResponse(response: Response): Promise<Studen
 
 export async function loadStudentSession(signal: AbortSignal): Promise<StudentSession> {
   try {
-    return await studentSessionResponse(await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store", signal }));
+    return await studentSessionResponse(await fetch("/api/auth/me?scope=student", { credentials: "same-origin", cache: "no-store", signal }));
   } catch { return { status: "unavailable" }; }
 }

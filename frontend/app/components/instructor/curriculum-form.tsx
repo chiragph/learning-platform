@@ -14,15 +14,15 @@ export function CurriculumForm({ course, target, onClose }: { course: Instructor
   const entry = target.kind === "module" ? target.module : target.activity;
   const title = target.kind === "move" ? "Move activity" : `${entry ? "Edit" : "Add"} ${target.kind === "module" ? "module" : "curriculum item"}`;
   const modules = course.modules.filter(m => !m.archived && (target.kind !== "move" || m.id !== target.moduleId));
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const data = new FormData(event.currentTarget);
     const base = { courseId: course.id, title: String(data.get("title") ?? ""), description: String(data.get("description") ?? "") };
     let result: string | null;
-    if (target.kind === "move") result = execute({ type: "activity.move", courseId: course.id, moduleId: target.moduleId, activityId: target.activity.id, targetModuleId: String(data.get("module")) });
-    else if (target.kind === "module") result = execute(target.module ? { type: "module.update", ...base, moduleId: target.module.id } : { type: "module.create", ...base });
+    if (target.kind === "move") result = await execute({ type: "activity.move", courseId: course.id, moduleId: target.moduleId, activityId: target.activity.id, targetModuleId: String(data.get("module")) });
+    else if (target.kind === "module") result = await execute(target.module ? { type: "module.update", ...base, moduleId: target.module.id } : { type: "module.create", ...base });
     else {
       const moduleId = target.activity ? target.moduleId! : String(data.get("module"));
-      result = execute(target.activity ? { type: "activity.update", ...base, moduleId, activityId: target.activity.id } : { type: "activity.create", ...base, moduleId, activityType: data.get("type") as ActivityType });
+      result = await execute(target.activity ? { type: "activity.update", ...base, moduleId, activityId: target.activity.id } : { type: "activity.create", ...base, moduleId, activityType: data.get("type") as ActivityType });
     }
     if (result) { onClose(); if (target.kind === "activity" && !target.activity && ["theory", "quiz", "lab", "workshop"].includes(String(data.get("type")))) router.push(activityEditorHref(data.get("type") as "theory" | "quiz" | "lab" | "workshop", result)); }
   }

@@ -68,7 +68,7 @@ export function StudentProvider({ user: initialUser, children }: { user: AuthUse
     if (logout.current) return logout.current;
     generation.current++; request.current?.abort();
     const pending = (async () => {
-      await authRequest("logout", {});
+      await authRequest("logout", {}, "student");
       setUser(null); setStatus("anonymous"); announceAuthChange();
       router.replace("/login"); router.refresh();
     })();

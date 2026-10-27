@@ -65,7 +65,8 @@ test("new quizzes save incomplete drafts and synchronize metadata without public
   const location = f.app.quiz.quizLocation(f.state, ids.activityId); assert.equal(location.activity.title, content().title); assert.equal(location.activity.updatedAt, "2026-10-27T11:00:00.000Z"); assert.equal(location.module.updatedAt, location.activity.updatedAt); assert.equal(location.course.updatedAt, location.activity.updatedAt);
   assert.equal(location.activity.status, "draft"); assert.equal(location.activity.publishedAt, null); assert.equal(location.activity.hasBeenPublished, false);
   assert.equal(JSON.stringify(f.state.courses.map(c => [c.id, ...c.modules.flatMap(m => [m.id, ...m.activities.map(a => a.id)])])), beforeIds);
-  assert.throws(() => f.run({ type: "course.status", courseId: ids.courseId, status: "published" }), /Stage 5E/);
+  f.run({ type: "course.status", courseId: ids.courseId, status: "published" });
+  assert.equal(f.state.courses.find(c=>c.id===ids.courseId).status, "published");
 });
 
 test("question edits, additions, duplication, deletion and ordering are immutable and retain correct-answer identity", () => {

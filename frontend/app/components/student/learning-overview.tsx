@@ -27,7 +27,7 @@ export function CourseCard({ course }: { course: Course }) {
   const index = courses.findIndex((c) => c.id === course.id);
   return <article className={`student-course-card ${course.id}`}>
     <div className="student-row"><SubjectMark subject={course.id} /><span className="student-course-number">0{index + 1}</span></div>
-    <p className="student-course-category">{["STRUCTURE", "STYLE", "INTERACTION"][index]}</p>
+    <p className="student-course-category">{["STRUCTURE", "STYLE", "INTERACTION"][index] ?? "COURSE"}</p>
     <h3>{course.title}</h3><p className="student-muted">{course.description}</p>
     <div className="student-course-meta"><span><StudentIcon name="layers" />{stats.modules} modules</span><span><StudentIcon name="clock" />~{estimatedTime(stats.minutes)}</span></div>
     <div className="student-course-completion"><div className="student-row"><span>{stats.completed}/{stats.total} activities</span><strong>{stats.percent}%</strong></div><progress className="student-progress" value={stats.percent} max={100} aria-label={`${course.title} completion`} /></div>

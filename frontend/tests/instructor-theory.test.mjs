@@ -85,7 +85,7 @@ test("incomplete drafts are savable, local activity titles sync, and publication
   const location = f.app.theory.theoryLocation(f.state, ids.activityId);
   assert.equal(location.activity.title, "Local lesson"); assert.equal(location.activity.status, "draft"); assert.equal(location.activity.publishedAt, null);
   assert.equal(location.activity.createdAt, beforeCreated); assert.equal(location.activity.updatedAt, "2026-10-26T11:00:00.000Z");
-  assert.throws(() => f.run({ type: "course.status", courseId: ids.courseId, status: "published" }), /Stage 5E/);
+  assert.throws(() => f.run({ type: "course.status", courseId: ids.courseId, status: "published" }), /content/);
 });
 
 test("renaming an unpublished local activity in Curriculum keeps its saved lesson title and revision consistent", () => {

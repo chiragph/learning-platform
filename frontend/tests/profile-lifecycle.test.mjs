@@ -24,8 +24,8 @@ function application(includeShell = false) {
   const initialUser = { ...user };
   async function fetch(url, options = {}) {
     requests.push({ url, options });
-    if (url === "/api/auth/logout") { user = null; return Response.json({ message: "Signed out successfully." }); }
-    assert.equal(url, "/api/auth/me");
+    if (url === "/api/auth/logout?scope=student") { user = null; return Response.json({ message: "Signed out successfully." }); }
+    assert.equal(url, "/api/auth/me?scope=student");
     return user ? Response.json({ user }) : Response.json({ message: "Please sign in." }, { status: 401 });
   }
   const router = { replace: href => redirects.push(href), refresh() {} };
@@ -33,8 +33,9 @@ function application(includeShell = false) {
     filename = path.resolve(filename);
     if (cache.has(filename)) return cache.get(filename).exports;
     const compiled = { exports: {} }; cache.set(filename, compiled);
-    const source = ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
+    const source = ts.transpileModule(fs.readFileSync(filename.endsWith("progress-provider.tsx") ? path.resolve("tests/fixtures/local-progress-provider.txt") : filename, "utf8"), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
     function require(specifier) {
+      if (specifier === "../../lib/instructor/remote-repository") return { RemoteInstructorRepository: load("app/lib/instructor/repository.ts").LocalInstructorRepository };
       if (specifier.endsWith(".css")) return {};
       if (specifier === "next/link") return { __esModule: true, default: ({ href, children, ...props }) => React.createElement("a", { ...props, href }, children) };
       if (specifier === "next/navigation") return { usePathname: () => window.location.pathname, useRouter: () => router };
@@ -155,7 +156,7 @@ test("learning reset requires confirmation and preserves profile, theme, other s
     assert.equal(window.localStorage.getItem(app.profiles.profileKey("student")), profileBefore);
     assert.equal(window.localStorage.getItem(app.logic.progressKey("other")), otherBefore);
     assert.equal(window.localStorage.getItem("decode-theme"), "dark");
-    await click(target, "Log out"); assert.ok(app.requests.some(request => request.url === "/api/auth/logout" && request.options.method === "POST")); assert.ok(app.redirects.includes("/login"));
+    await click(target, "Log out"); assert.ok(app.requests.some(request => request.url === "/api/auth/logout?scope=student" && request.options.method === "POST")); assert.ok(app.redirects.includes("/login"));
     assert.equal(window.localStorage.getItem(app.profiles.profileKey("student")), profileBefore);
     assert.equal(target.errors.length, 0);
   } finally { await target.dispose(); document.documentElement.dataset.theme = "light"; }
