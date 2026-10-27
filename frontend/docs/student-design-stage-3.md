@@ -1,5 +1,7 @@
 # DECODE — Stage 3 review
 
+> **Historical stage report.** Current auth, account persistence, Instructor access and submission behavior may supersede this report. Use the [current frontend guide](../../docs/FRONTEND-GUIDE.md), [architecture](../../docs/PROJECT-ARCHITECTURE.md) and [status](../../docs/PROJECT-STATUS.md) for implementation work; retain this report for design rationale and dated validation.
+
 ## Delivered scope
 
 Stage 3 adds Monaco to the shared code workspace, redesigns `/playground`, and redesigns the theory library and lesson reading/practice views. No new routes were added. Quiz, challenge/project-specific redesigns, creative profile, instructor tools and content publishing remain deferred.
@@ -48,7 +50,7 @@ Existing limits remain: preview code can consume browser CPU/memory, browser-loc
 
 The existing development server at `http://localhost:3000` was used without being stopped or replaced. On a fresh checkout, run `npm ci` and `npm.cmd run dev`. The package hooks generate the worker files.
 
-Development demo: `student@example.test` / `Decode123!`.
+Historical browser-demo credentials are omitted. Use the current email/password setup and an approved local test account; preserve existing browser data when reviewing this stage.
 
 1. Open `/playground`. Confirm Monaco replaces the loading message. Type HTML tags, CSS properties and JavaScript expressions to check completion, colors, indentation, line numbers and bracket matching. Switch all three files, including cursor/undo state.
 2. Edit all files, Run, interact with the result, introduce a syntax error and check runtime messages. Stop and rerun. Verify code never has access to parent application storage from the iframe.

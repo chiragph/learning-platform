@@ -1,11 +1,13 @@
 # DECODE student experience
 
+> **Historical stage report.** Current auth, account persistence, Instructor access and submission behavior may supersede this report. Use the [current frontend guide](../../docs/FRONTEND-GUIDE.md), [architecture](../../docs/PROJECT-ARCHITECTURE.md) and [status](../../docs/PROJECT-STATUS.md) for implementation work; retain this report for design rationale and dated validation.
+
 ## Run the development demo
 
 Run `npm run dev` (`npm.cmd run dev` from Windows PowerShell), then open `/login`.
 
 - Email: **student@example.test**
-- Published demo passphrase: **Decode123!**
+- Historical demo credential omitted; current access uses real email/password registration and backend sessions.
 - Remember me uses localStorage; otherwise the session uses sessionStorage and survives refresh in that tab.
 - Registration accepts a new fictional address such as `learner@example.test`. Aliases must start with a letter and contain 2–25 lowercase letters, digits, or hyphens. Addresses are case-insensitive. Use the same published passphrase in both password fields and enter a fictional full name for form validation.
 - Real email domains are rejected. Names and passwords are never persisted. Only fictional aliases are saved; display labels and example.test emails are generated from them. Do not put personal information or secrets into code drafts either.

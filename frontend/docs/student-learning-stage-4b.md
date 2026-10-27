@@ -1,5 +1,7 @@
 # DECODE — Stage 4B: Interactive Student Learning Activities
 
+> **Historical stage report.** Current auth, account persistence, Instructor access and submission behavior may supersede this report. Use the [current frontend guide](../../docs/FRONTEND-GUIDE.md), [architecture](../../docs/PROJECT-ARCHITECTURE.md) and [status](../../docs/PROJECT-STATUS.md) for implementation work; retain this report for design rationale and dated validation.
+
 Implemented on `feature/student-dashboard`, building on the manually reviewed Stage 4A.2 workspace. Stage 4B covers the existing three quizzes, six labs and four guided workshops. The 38 curriculum activity IDs, nine modules, existing routes and draft keys are preserved. No backend, database, Prisma, authentication contract, instructor/admin dashboard, or Stage 4C implementation was added. No branch switch, staging, commit, push or merge was performed.
 
 ## Completed functionality
@@ -126,7 +128,7 @@ All records and images are browser-local for this demo account/origin. Quotas or
 
 ## Manual visual and functional review
 
-Use an existing foreground development server, or run `npm run dev` from `frontend` in a foreground terminal and open `http://localhost:3000`. Development demo login remains `student@example.test` / `Decode123!`; use a separate fictional demo account to avoid disturbing existing reviewed progress. Production demo login is still disabled by the existing auth implementation.
+Historical browser-demo credentials are omitted. Use the current email/password setup and an approved local test account; preserve existing browser data when reviewing this stage.
 
 - [ ] Open My Learning and confirm the original 38 activities, course/module expansion, route links, sidebar collapse preference and active navigation. Check light/dark themes and desktop/tablet/mobile widths.
 - [ ] Open `/quizzes/html`, `/quizzes/css` and `/quizzes/javascript`. Change answers, use radio-key navigation and numbered question controls, and verify the answered count. Attempt incomplete submission and verify first-unanswered focus beneath the sticky header.

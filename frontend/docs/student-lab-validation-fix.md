@@ -1,5 +1,7 @@
 # DECODE — Stage 4B lab validation fix
 
+> **Historical stage report.** Current auth, account persistence, Instructor access and submission behavior may supersede this report. Use the [current frontend guide](../../docs/FRONTEND-GUIDE.md), [architecture](../../docs/PROJECT-ARCHITECTURE.md) and [status](../../docs/PROJECT-STATUS.md) for implementation work; retain this report for design rationale and dated validation.
+
 Date: 2026-10-25. Scope: the shared Check Solution pipeline only, on feature/student-dashboard. No backend, database, authentication, curriculum IDs, Monaco lifecycle, or progress semantics changed. No Git staging, commit, push, merge, or branch switch.
 
 ## Root cause and evidence

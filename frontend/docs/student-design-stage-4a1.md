@@ -1,7 +1,11 @@
 # DECODE — Stage 4A.1: Integrated lessons and UI refinement
 
-Date: 2026-10-25  
-Branch: `feature/student-dashboard`  
+> **Historical stage report.** Current auth, account persistence, Instructor access and submission behavior may supersede this report. Use the [current frontend guide](../../docs/FRONTEND-GUIDE.md), [architecture](../../docs/PROJECT-ARCHITECTURE.md) and [status](../../docs/PROJECT-STATUS.md) for implementation work; retain this report for design rationale and dated validation.
+
+Date: 2026-10-25
+
+Branch: `feature/student-dashboard`
+
 Status: implemented; ready for visual review.
 
 ## Implementation summary
@@ -124,7 +128,7 @@ Real browser rendering, responsive geometry, animation timing, pointer interacti
 
 ## Visual review checklist
 
-Use the existing development server at `http://localhost:3000`, or run `npm.cmd run dev` from `frontend`. Demo sign-in remains development-only: `student@example.test` / `Decode123!`. Do not clear existing site data to review this stage.
+Historical browser-demo credentials are omitted. Use the current email/password setup and an approved local test account; preserve existing browser data when reviewing this stage.
 
 1. Open Dashboard → My Learning → a theory lesson. Check that each new link visit starts at its heading. Scroll, navigate elsewhere, then use browser Back/Forward; verify normal position restoration. Check a direct module hash link as well.
 2. Review `/lessons/html-introduction`, `/lessons/css-introduction`, and `/lessons/javascript-events`, then sample other theory pages. Confirm explanations and syntax examples appear above the integrated workspace, and the correct initial file and task instructions are present.

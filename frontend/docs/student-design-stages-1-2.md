@@ -1,5 +1,7 @@
 # DECODE student redesign — Stages 1–2 review
 
+> **Historical stage report.** Current auth, account persistence, Instructor access and submission behavior may supersede this report. Use the [current frontend guide](../../docs/FRONTEND-GUIDE.md), [architecture](../../docs/PROJECT-ARCHITECTURE.md) and [status](../../docs/PROJECT-STATUS.md) for implementation work; retain this report for design rationale and dated validation.
+
 ## Scope delivered
 
 This iteration changes the shared student application shell/design primitives, `/dashboard`, `/courses`, and `/courses/[id]`. It preserves the existing local student implementation rather than rebuilding it. No new routes or dependencies were introduced.
@@ -30,7 +32,7 @@ This is presentation metadata, not the Stage 6 editable/published repository. Fu
 
 The existing development server is available at `http://localhost:3000`; this iteration did not stop or replace that server. If it is no longer running, start `npm.cmd run dev` from the frontend directory.
 
-Sign in with `student@example.test` / `Decode123!` (development only), then review:
+Historical browser-demo credentials are omitted. Use the current email/password setup and an approved local test account; preserve existing browser data when reviewing this stage.
 
 1. `/dashboard` — inspect the welcome/continue composition, statistics, roadmap, empty/populated activity and practice shortcuts. Complete an activity or open a lesson and return to verify the resume target and actual counters.
 2. `/courses` — inspect all three course overviews, module previews, Start/Continue actions and progress. Follow a module link.
