@@ -15,6 +15,7 @@ const { createRoot } = await import("react-dom/client");
 const dependency = createRequire(import.meta.url);
 const alice = { id: "172f722e-95ca-40f4-ad73-08008c00d63f", name: "Alice Learner", email: "alice@example.test", role: "STUDENT" };
 const bob = { id: "9738d735-d020-44e9-92db-53ce1b56c120", name: "Bob Learner", email: "bob@example.test", role: "STUDENT" };
+const instructor = { id: "7bf5c7e7-0741-44e0-a658-cd18211b7e58", name: "DECODE Instructor", email: "decode.instructor@gmail.com", role: "INSTRUCTOR" };
 const plain = value => JSON.parse(JSON.stringify(value));
 
 // Exercise the real frontend transport, guard, providers and repositories.
@@ -157,7 +158,7 @@ test("main's login and registration requests, pending guard and Remember me surv
   }
 });
 
-test("real auth errors and validation do not navigate; retries and other-role destinations retain main behavior", async () => {
+test("real auth errors do not navigate and only the designated instructor opens the instructor dashboard", async () => {
   const app = application(), { AuthForm } = app.load("app/components/auth/auth-form.tsx");
   const target = await mount(() => React.createElement(AuthForm, { mode: "login" }));
   try {
@@ -166,9 +167,89 @@ test("real auth errors and validation do not navigate; retries and other-role de
     await submit(target); assert.match(target.container.textContent, /Invalid email or password/); assert.deepEqual(app.redirects, []);
     assert.equal(target.container.querySelector("fieldset").disabled, false);
     app.setTransport(async () => Response.json({ user: { ...alice, role: "INSTRUCTOR" } }));
-    await submit(target); assert.deepEqual(app.redirects, ["/login/success"]);
+    await submit(target); assert.deepEqual(app.redirects, ["/dashboard"]);
     assert.equal(target.errors.length, 0);
   } finally { await target.dispose(); }
+  const instructorApp = application(), InstructorForm = instructorApp.load("app/components/auth/auth-form.tsx").AuthForm;
+  instructorApp.setTransport(async () => Response.json({ user: instructor }));
+  const instructorTarget = await mount(() => React.createElement(InstructorForm, { mode: "login" }));
+  try {
+    await fill(instructorTarget, "login");
+    await input(instructorTarget, '[name="email"]', instructor.email);
+    await submit(instructorTarget);
+    assert.deepEqual(instructorApp.redirects, ["/instructor"]);
+    assert.equal(instructorApp.refreshes, 1);
+    assert.equal(instructorTarget.container.querySelector('[name="password"]').value, "");
+  } finally { await instructorTarget.dispose(); }
+});
+
+test("instructor server guard allows only a verified designated account, in production as well as development", async () => {
+  const app = application(), { verifyInstructorSession } = app.load("app/components/auth/server-instructor-session.ts");
+  app.setTransport(async () => Response.json({ user: { ...instructor, passwordHash: "private", token: "private" } }));
+  assert.deepEqual(plain(await verifyInstructorSession()), { status: "authenticated", user: instructor });
+  assert.equal(app.calls[0].options.cache, "no-store");
+  assert.deepEqual(plain(app.calls[0].options.headers), { Cookie: "decode_session=" + "a".repeat(64) });
+  for (const user of [alice, { ...instructor, role: "STUDENT" }, { ...instructor, email: "someone-else@example.test" }, { ...instructor, role: "ADMIN" }]) {
+    app.setTransport(async () => Response.json({ user }));
+    assert.equal((await verifyInstructorSession()).status, "forbidden");
+  }
+  app.setTransport(async () => Response.json({ message: "expired" }, { status: 401 }));
+  assert.equal((await verifyInstructorSession()).status, "anonymous");
+  app.setTransport(async () => Response.json({ user: { ...instructor, id: null } }));
+  assert.equal((await verifyInstructorSession()).status, "unavailable");
+  app.setTransport(async () => { throw new Error("Offline"); });
+  assert.equal((await verifyInstructorSession()).status, "unavailable");
+  app.setCookie("invalid; other=cookie");
+  assert.equal((await verifyInstructorSession()).status, "anonymous");
+});
+
+test("instructor layout redirects anonymous and student sessions before rendering its unchanged shell", async () => {
+  const app = application(), Layout = app.load("app/instructor/layout.tsx").default;
+  const shell = Layout({ children: React.createElement("p", null, "Protected instructor content") });
+  assert.equal(shell.type, React.Suspense);
+  const boundary = shell.props.children;
+  app.setTransport(async () => Response.json({ user: instructor }));
+  assert.deepEqual(plain((await boundary.type(boundary.props)).props.user), instructor);
+  app.setTransport(async () => Response.json({ user: alice }));
+  await assert.rejects(() => boundary.type(boundary.props), error => error.redirect === "/dashboard");
+  app.setCookie(undefined);
+  await assert.rejects(() => boundary.type(boundary.props), error => error.redirect === "/login");
+});
+
+test("legacy login success URL forwards verified accounts to their correct dashboard", async () => {
+  const app = application(), Page = app.load("app/login/success/page.tsx").default;
+  const boundary = Page().props.children.props.children;
+  for (const [user, destination] of [[alice, "/dashboard"], [instructor, "/instructor"]]) {
+    app.setTransport(async () => Response.json({ user }));
+    await assert.rejects(() => boundary.type(), error => error.redirect === destination);
+  }
+  app.setCookie(undefined);
+  await assert.rejects(() => boundary.type(), error => error.redirect === "/login");
+});
+
+test("cached instructor workspaces hide on account change, expiry, and backend outage", async () => {
+  for (const scenario of ["student", "expired", "offline"]) {
+    const app = application(), { InstructorSessionProvider } = app.load("app/components/instructor/instructor-session-provider.tsx");
+    app.setTransport(async () => Response.json({ user: instructor }));
+    const target = await mount(() => React.createElement(InstructorSessionProvider, { user: instructor }, React.createElement("p", null, "Existing instructor UI")));
+    try {
+      const wrapper = () => target.container.querySelector("[data-instructor-session-workspace]");
+      assert.equal(wrapper().hidden, false);
+      app.setTransport(async () => {
+        if (scenario === "offline") throw new Error("Offline");
+        return scenario === "expired" ? Response.json({}, { status: 401 }) : Response.json({ user: alice });
+      });
+      await act(async () => window.dispatchEvent(new window.StorageEvent("storage", { key: "decode-auth-change-v1" })));
+      assert.equal(wrapper().hidden, true);
+      if (scenario === "offline") {
+        assert.deepEqual(app.redirects, []);
+        assert.match(target.container.textContent, /Unable to verify your session/);
+        app.setTransport(async () => Response.json({ user: instructor }));
+        await act(async () => target.container.querySelector("button").click());
+        assert.equal(wrapper().hidden, false);
+      } else assert.deepEqual(app.redirects, [scenario === "expired" ? "/login" : "/dashboard"]);
+    } finally { await target.dispose(); }
+  }
 });
 
 test("authenticated UUIDs scope local records; old demo progress, drafts, avatars and images are never transferred", async () => {

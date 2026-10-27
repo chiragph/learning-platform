@@ -10,6 +10,7 @@ import {
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { hashPassword, verifyPassword } from './password.js';
+import { isInstructorEmail, publicAccount } from './account-access.js';
 
 const publicUser = { id: true, name: true, email: true, role: true } as const;
 const invalidCredentials = () =>
@@ -81,6 +82,9 @@ export class AuthService {
 
   async register(body: unknown) {
     const { email, password, name } = validate(body, true);
+    if (isInstructorEmail(email)) {
+      throw new ConflictException('This account is reserved. Sign in instead.');
+    }
     const passwordHash = await hashPassword(password);
     const session = newSession(false);
     return this.database(async () => {
@@ -102,7 +106,7 @@ export class AuthService {
           select: publicUser,
         });
         return {
-          user,
+          user: publicAccount(user),
           token: session.token,
           maxAge: session.maxAge,
           remember: false,
@@ -139,7 +143,7 @@ export class AuthService {
       });
       const { id, name, role } = record;
       return {
-        user: { id, name, email: record.email, role },
+        user: publicAccount({ id, name, email: record.email, role }),
         token: session.token,
         maxAge: session.maxAge,
         remember,
@@ -159,7 +163,7 @@ export class AuthService {
           'Your session has expired. Please sign in again.',
         );
       }
-      return { user: session.user };
+      return { user: publicAccount(session.user) };
     });
   }
 

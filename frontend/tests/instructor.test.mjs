@@ -145,13 +145,16 @@ test("blocked/quota-limited storage and stale tabs never falsely save or overwri
   assert.throws(() => full.execute({ type:"course.create",id:"unsaved",fields:data }),/not saved/); assert.equal(full.getSnapshot().state.courses.length,3);
 });
 
-test("preview gate permits development only and the actual server layout refuses production on localhost", () => {
+test("instructor access requires the designated authenticated identity in every environment", () => {
   for (const environment of ["development","production","test"]) {
-    const expected = environment === "development";
-    const context = loader(environment, { "react/jsx-runtime": { jsx: () => "rendered" }, "next/navigation": { notFound: () => { throw new Error("404"); } }, "../components/instructor/instructor-shell": { InstructorShell: () => null } });
-    assert.equal(context.load("app/lib/instructor/access.ts").instructorPreviewEnabled(),expected);
-    const layout = context.load("app/instructor/layout.tsx").default;
-    if (expected) assert.equal(layout({ children:null }),"rendered"); else assert.throws(() => layout({ children:null }),/404/);
+    const { instructorAccessAllowed, accountHome } = loader(environment).load("app/lib/instructor/access.ts");
+    const instructor = { email:"decode.instructor@gmail.com",role:"INSTRUCTOR" };
+    assert.equal(instructorAccessAllowed(instructor),true);
+    assert.equal(accountHome(instructor),"/instructor");
+    for (const account of [null, { ...instructor,role:"STUDENT" }, { ...instructor,email:"other@example.test" }, { ...instructor,role:"ADMIN" }]) {
+      assert.equal(instructorAccessAllowed(account),false);
+      if (account) assert.equal(accountHome(account),"/dashboard");
+    }
   }
 });
 

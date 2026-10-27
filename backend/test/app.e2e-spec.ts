@@ -6,6 +6,7 @@ import { AppModule } from './../src/app.module.js';
 import { PrismaService } from './../src/prisma/prisma.service.js';
 import { vi } from 'vitest';
 import { hashPassword } from '../src/auth/password.js';
+import { allowedFrontendOrigins } from '../src/auth/frontend-origins.js';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -48,6 +49,7 @@ describe('AppController (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    app.enableCors({ origin: allowedFrontendOrigins(), credentials: true });
     app.setGlobalPrefix('api');
     await app.init();
   });
@@ -161,6 +163,31 @@ describe('AppController (e2e)', () => {
       expect(deleteMany).not.toHaveBeenCalled();
     },
   );
+
+  it.each(['http://localhost:3001', 'http://127.0.0.1:3001'])(
+    'accepts local port fallback origin %s with credentials and the browser same-origin proxy context', async origin => {
+      const response = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .set('Origin', origin)
+        .set('Sec-Fetch-Site', 'same-origin')
+        .send({ email: user.email, password: 'correct password' })
+        .expect(200);
+      expect(response.body).toEqual({ user });
+      expect(response.headers['access-control-allow-origin']).toBe(origin);
+      expect(response.headers['access-control-allow-credentials']).toBe('true');
+      expect(response.headers['set-cookie'][0]).toContain('HttpOnly');
+    },
+  );
+
+  it('keeps cross-site requests blocked even when their Origin is in the local allowlist', async () => {
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .set('Origin', 'http://localhost:3001')
+      .set('Sec-Fetch-Site', 'cross-site')
+      .send({ email: user.email, password: 'correct password' })
+      .expect(403);
+    expect(sessionCreate).not.toHaveBeenCalled();
+  });
 
   it('does not leak database errors or issue cookies during an outage', async () => {
     findUnique.mockRejectedValue(new Error('private database password'));

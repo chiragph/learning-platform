@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import type { CookieOptions, Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
+import { frontendOriginAllowed } from './frontend-origins.js';
 
 const cookieName = 'decode_session';
 
@@ -46,8 +47,7 @@ export class AuthController {
     const origin = request.headers.origin;
     if (
       request.headers['sec-fetch-site'] === 'cross-site' ||
-      (origin &&
-        origin !== (process.env.FRONTEND_URL ?? 'http://localhost:3000'))
+      (origin && !frontendOriginAllowed(origin))
     ) {
       throw new ForbiddenException('Request origin is not allowed.');
     }
